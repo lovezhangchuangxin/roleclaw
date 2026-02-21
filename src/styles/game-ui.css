@@ -3,6 +3,12 @@
   color: var(--game-btn-text);
   font-size: calc(16px * var(--game-font-scale, 1));
   zoom: var(--game-ui-zoom, 1);
+  min-height: 100dvh;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
   background:
     radial-gradient(circle at 10% 0%, var(--game-bg-layer-1), transparent 28%),
     radial-gradient(circle at 90% 90%, var(--game-bg-layer-2), transparent 30%);
@@ -331,11 +337,15 @@
   min-height: 100px;
   max-height: 180px;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .game-story-options {
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding-right: 0.2rem;
 }
 
@@ -347,6 +357,8 @@
   display: grid;
   gap: 0.65rem;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding-right: 0.2rem;
 }
 
@@ -446,6 +458,8 @@
   flex: 1;
   min-height: 220px;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding-right: 0.2rem;
 }
 
@@ -671,6 +685,7 @@
 .saves-list {
   display: grid;
   gap: 0.58rem;
+  overscroll-behavior: contain;
 }
 
 .saves-toolbar {
