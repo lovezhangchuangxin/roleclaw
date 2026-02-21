@@ -1,0 +1,152 @@
+:root,
+[data-game-theme="default"] {
+  --game-bg-layer-1: rgb(14 116 144 / 14%);
+  --game-bg-layer-2: rgb(245 158 11 / 12%);
+  --game-overlay-bg: rgb(2 6 23 / 55%);
+
+  --game-panel-bg: rgb(248 250 252 / 92%);
+  --game-panel-border: rgb(15 23 42 / 18%);
+
+  --game-input-bg: rgb(255 255 255 / 92%);
+  --game-input-border: rgb(15 23 42 / 20%);
+
+  --game-btn-bg: rgb(248 250 252 / 94%);
+  --game-btn-border: rgb(15 23 42 / 20%);
+  --game-btn-text: rgb(15 23 42);
+  --game-btn-hover-bg: rgb(226 232 240);
+
+  --game-btn-primary-bg: rgb(15 23 42);
+  --game-btn-primary-text: rgb(248 250 252);
+  --game-btn-primary-hover-bg: rgb(30 41 59);
+  --game-danger-text: rgb(185 28 28);
+
+  --game-menu-card-bg: rgb(248 250 252 / 92%);
+  --game-menu-card-border: rgb(15 23 42 / 18%);
+  --game-menu-kicker: rgb(71 85 105);
+  --game-menu-shadow: rgb(15 23 42 / 22%);
+
+  --game-error-bg: rgb(254 242 242 / 94%);
+  --game-error-border: rgb(239 68 68 / 45%);
+  --game-error-text: rgb(153 27 27);
+
+  --game-canvas-bg: rgb(241 245 249);
+  --game-canvas-edge: rgb(15 23 42);
+  --game-canvas-edge-locked: rgb(148 163 184);
+  --game-canvas-node: rgb(29 78 216);
+  --game-canvas-node-active: rgb(220 38 38);
+  --game-canvas-label: rgb(15 23 42);
+}
+
+[data-game-theme="fantasy"] {
+  --game-bg-layer-1: rgb(120 53 15 / 16%);
+  --game-bg-layer-2: rgb(245 158 11 / 12%);
+  --game-overlay-bg: rgb(36 20 7 / 60%);
+
+  --game-panel-bg: rgb(252 244 226 / 93%);
+  --game-panel-border: rgb(120 53 15 / 24%);
+
+  --game-input-bg: rgb(255 250 238 / 94%);
+  --game-input-border: rgb(146 64 14 / 22%);
+
+  --game-btn-bg: rgb(255 247 237);
+  --game-btn-border: rgb(146 64 14 / 28%);
+  --game-btn-text: rgb(67 20 7);
+  --game-btn-hover-bg: rgb(254 215 170);
+
+  --game-btn-primary-bg: rgb(120 53 15);
+  --game-btn-primary-text: rgb(255 247 237);
+  --game-btn-primary-hover-bg: rgb(146 64 14);
+  --game-danger-text: rgb(153 27 27);
+
+  --game-menu-card-bg: rgb(250 239 214 / 94%);
+  --game-menu-card-border: rgb(120 53 15 / 26%);
+  --game-menu-kicker: rgb(124 45 18);
+  --game-menu-shadow: rgb(120 53 15 / 26%);
+
+  --game-error-bg: rgb(254 242 242 / 94%);
+  --game-error-border: rgb(220 38 38 / 45%);
+  --game-error-text: rgb(153 27 27);
+
+  --game-canvas-bg: rgb(254 249 233);
+  --game-canvas-edge: rgb(120 53 15);
+  --game-canvas-edge-locked: rgb(180 83 9);
+  --game-canvas-node: rgb(180 83 9);
+  --game-canvas-node-active: rgb(153 27 27);
+  --game-canvas-label: rgb(67 20 7);
+}
+
+[data-game-theme="terminal"] {
+  --game-bg-layer-1: rgb(6 182 212 / 16%);
+  --game-bg-layer-2: rgb(34 197 94 / 12%);
+  --game-overlay-bg: rgb(2 6 23 / 72%);
+
+  --game-panel-bg: rgb(2 6 23 / 92%);
+  --game-panel-border: rgb(34 211 238 / 30%);
+
+  --game-input-bg: rgb(2 6 23 / 88%);
+  --game-input-border: rgb(34 211 238 / 34%);
+
+  --game-btn-bg: rgb(15 23 42 / 94%);
+  --game-btn-border: rgb(34 211 238 / 34%);
+  --game-btn-text: rgb(165 243 252);
+  --game-btn-hover-bg: rgb(22 78 99);
+
+  --game-btn-primary-bg: rgb(6 182 212);
+  --game-btn-primary-text: rgb(2 6 23);
+  --game-btn-primary-hover-bg: rgb(8 145 178);
+  --game-danger-text: rgb(248 113 113);
+
+  --game-menu-card-bg: rgb(2 6 23 / 94%);
+  --game-menu-card-border: rgb(34 211 238 / 36%);
+  --game-menu-kicker: rgb(125 211 252);
+  --game-menu-shadow: rgb(6 182 212 / 24%);
+
+  --game-error-bg: rgb(69 10 10 / 66%);
+  --game-error-border: rgb(248 113 113 / 52%);
+  --game-error-text: rgb(254 202 202);
+
+  --game-canvas-bg: rgb(2 6 23);
+  --game-canvas-edge: rgb(125 211 252);
+  --game-canvas-edge-locked: rgb(71 85 105);
+  --game-canvas-node: rgb(45 212 191);
+  --game-canvas-node-active: rgb(251 146 60);
+  --game-canvas-label: rgb(207 250 254);
+}
+
+[data-game-theme="archive"] {
+  --game-bg-layer-1: rgb(113 63 18 / 12%);
+  --game-bg-layer-2: rgb(120 113 108 / 10%);
+  --game-overlay-bg: rgb(28 25 23 / 58%);
+
+  --game-panel-bg: rgb(250 248 244 / 93%);
+  --game-panel-border: rgb(68 64 60 / 24%);
+
+  --game-input-bg: rgb(255 253 250 / 92%);
+  --game-input-border: rgb(87 83 78 / 24%);
+
+  --game-btn-bg: rgb(250 248 244);
+  --game-btn-border: rgb(87 83 78 / 24%);
+  --game-btn-text: rgb(41 37 36);
+  --game-btn-hover-bg: rgb(231 229 228);
+
+  --game-btn-primary-bg: rgb(68 64 60);
+  --game-btn-primary-text: rgb(250 248 244);
+  --game-btn-primary-hover-bg: rgb(87 83 78);
+  --game-danger-text: rgb(153 27 27);
+
+  --game-menu-card-bg: rgb(245 241 233 / 94%);
+  --game-menu-card-border: rgb(87 83 78 / 24%);
+  --game-menu-kicker: rgb(120 113 108);
+  --game-menu-shadow: rgb(68 64 60 / 20%);
+
+  --game-error-bg: rgb(254 242 242 / 94%);
+  --game-error-border: rgb(220 38 38 / 45%);
+  --game-error-text: rgb(153 27 27);
+
+  --game-canvas-bg: rgb(245 241 233);
+  --game-canvas-edge: rgb(68 64 60);
+  --game-canvas-edge-locked: rgb(168 162 158);
+  --game-canvas-node: rgb(120 113 108);
+  --game-canvas-node-active: rgb(146 64 14);
+  --game-canvas-label: rgb(41 37 36);
+}
