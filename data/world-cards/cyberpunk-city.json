@@ -1,0 +1,71 @@
+{
+  "id": "cyberpunk-city",
+  "name": "赛博都市",
+  "schemaVersion": "2.0.0",
+  "contentVersion": 1,
+  "genre": "cyberpunk",
+  "tone": "黑暗",
+  "description": "高科技低生活的未来都市",
+  "rules": [
+    {
+      "id": "tech-level",
+      "title": "科技水平",
+      "content": "神经网络接口、义体改造、全息投影广泛应用。AI管理大部分城市功能。",
+      "priority": 1
+    },
+    {
+      "id": "corporate-power",
+      "title": "企业势力",
+      "content": "三大企业财团控制城市命脉，议会形同虚设。",
+      "priority": 2
+    }
+  ],
+  "locationPool": [
+    {
+      "id": "downtown",
+      "name": "下城区",
+      "x": 400,
+      "y": 300,
+      "tags": ["贫民窟", "灰色", "交易"],
+      "description": "霓虹灯下的阴暗角落",
+      "npcIds": ["hacker", "dealer"],
+      "eventIds": []
+    },
+    {
+      "id": "corporate-tower",
+      "name": "企业大厦",
+      "x": 600,
+      "y": 150,
+      "tags": ["摩天楼", "精英", "危险"],
+      "description": "企业财团的总部",
+      "npcIds": ["exec", "security"],
+      "eventIds": []
+    },
+    {
+      "id": "net-cafe",
+      "name": "虚拟网咖",
+      "x": 200,
+      "y": 200,
+      "tags": ["网络", "黑客", "信息"],
+      "description": "赛博空间入口",
+      "npcIds": ["netrunner"],
+      "eventIds": []
+    }
+  ],
+  "archetypePool": [
+    {
+      "id": "netrunner",
+      "name": "黑客",
+      "traits": ["叛逆", "聪慧", "隐蔽"],
+      "motivation": "揭露企业阴谋",
+      "secret": "曾是企业安全主管"
+    },
+    {
+      "id": "merc",
+      "name": "佣兵",
+      "traits": ["务实", "冷血", "经验"],
+      "motivation": "赚钱活下去",
+      "secret": "身患不治之症"
+    }
+  ]
+}

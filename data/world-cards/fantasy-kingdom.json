@@ -1,0 +1,71 @@
+{
+  "id": "fantasy-kingdom",
+  "name": "奇幻王国",
+  "schemaVersion": "2.0.0",
+  "contentVersion": 1,
+  "genre": "fantasy",
+  "tone": "史诗",
+  "description": "一个充满魔法与冒险的中世纪奇幻世界",
+  "rules": [
+    {
+      "id": "magic-system",
+      "title": "魔法体系",
+      "content": "魔法分为元素魔法、心灵魔法、炼金术三大流派。魔法消耗法力值，需要吟唱和手势。",
+      "priority": 1
+    },
+    {
+      "id": "race-faction",
+      "title": "种族与阵营",
+      "content": "人类王国、精灵森林、矮人山脉、兽族草原四大势力。阵营倾向影响NPC态度。",
+      "priority": 2
+    }
+  ],
+  "locationPool": [
+    {
+      "id": "capital",
+      "name": "王都",
+      "x": 400,
+      "y": 300,
+      "tags": ["城市", "政治", "安全"],
+      "description": "王国首都，商业繁荣",
+      "npcIds": ["king", "merchant"],
+      "eventIds": []
+    },
+    {
+      "id": "dark-forest",
+      "name": "黑暗森林",
+      "x": 200,
+      "y": 150,
+      "tags": ["森林", "危险", "任务"],
+      "description": "充满未知危险的原始森林",
+      "npcIds": ["elf-ranger"],
+      "eventIds": []
+    },
+    {
+      "id": "mountain-peak",
+      "name": "矮人王座",
+      "x": 600,
+      "y": 150,
+      "tags": ["山地", "锻造", "种族"],
+      "description": "矮人帝国的核心城市",
+      "npcIds": ["dwarf-king"],
+      "eventIds": []
+    }
+  ],
+  "archetypePool": [
+    {
+      "id": "adventurer",
+      "name": "冒险者",
+      "traits": ["勇敢", "好奇", "灵活"],
+      "motivation": "寻找传说中的宝藏",
+      "secret": "真实身份是王子"
+    },
+    {
+      "id": "mage",
+      "name": "法师",
+      "traits": ["智慧", "神秘", "专注"],
+      "motivation": "追求更高深的魔法",
+      "secret": "在研究禁忌魔法"
+    }
+  ]
+}

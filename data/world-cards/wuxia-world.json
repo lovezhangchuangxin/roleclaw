@@ -1,0 +1,71 @@
+{
+  "id": "wuxia-world",
+  "name": "武侠江湖",
+  "schemaVersion": "2.0.0",
+  "contentVersion": 1,
+  "genre": "wuxia",
+  "tone": "江湖",
+  "description": "刀光剑影的武林世界",
+  "rules": [
+    {
+      "id": "martial-arts",
+      "title": "武学境界",
+      "content": "修炼境界：后天、先天、宗师、大宗师、陆地神仙。内力为根本，招式为辅助。",
+      "priority": 1
+    },
+    {
+      "id": "faction-tension",
+      "title": "门派纷争",
+      "content": "正道以少林武当为首，魔道以日月神教为尊，江湖门派林立，恩怨情仇不断。",
+      "priority": 2
+    }
+  ],
+  "locationPool": [
+    {
+      "id": "mount-sky",
+      "name": "凌云山",
+      "x": 400,
+      "y": 300,
+      "tags": ["正道", "门派", "险峻"],
+      "description": "武林正道泰斗少林寺所在地",
+      "npcIds": ["abbot", "disciple"],
+      "eventIds": []
+    },
+    {
+      "id": "rose-manor",
+      "name": "玫瑰山庄",
+      "x": 200,
+      "y": 150,
+      "tags": ["江湖", "神秘", "浪漫"],
+      "description": "江湖上最神秘的杀手组织",
+      "npcIds": ["lady-rose", "assassin"],
+      "eventIds": []
+    },
+    {
+      "id": "riverside-inn",
+      "name": "河边客栈",
+      "x": 500,
+      "y": 400,
+      "tags": ["江湖", "消息", "客栈"],
+      "description": "各路豪杰汇聚之地",
+      "npcIds": ["innkeeper", "wanderer"],
+      "eventIds": []
+    }
+  ],
+  "archetypePool": [
+    {
+      "id": "young-master",
+      "name": "少侠",
+      "traits": ["正直", "热血", "正义"],
+      "motivation": "成为一代宗师",
+      "secret": "身负血海深仇"
+    },
+    {
+      "id": "female-avatar",
+      "name": "女侠",
+      "traits": ["聪慧", "机敏", "外冷内热"],
+      "motivation": "寻找失散亲人",
+      "secret": "真实身份是魔教公主"
+    }
+  ]
+}
