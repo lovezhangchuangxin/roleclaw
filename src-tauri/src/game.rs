@@ -1,8 +1,12 @@
 use crate::domain::{
-    CharacterArchetype, DialogueOption, EventLogEntry, PathEdge, TurnInput, TurnResult, WorldCard, WorldInit, WorldRule,
+    CharacterArchetype, DialogueOption, EventLogEntry, ModelProviderConfig, PathEdge, TurnInput,
+    TurnResult, WorldCard, WorldInit, WorldRule,
 };
 use crate::llm::{generate_narration, stream_narration};
-use crate::storage::{append_ndjson, load_meta, load_snapshot, now_iso, write_meta, write_snapshot, AppPaths};
+use crate::storage::{
+    append_ndjson, load_global_data, load_meta, load_snapshot, now_iso, write_meta, write_snapshot,
+    AppPaths,
+};
 use serde_json::json;
 
 pub fn default_world_cards() -> Vec<WorldCard> {
@@ -196,6 +200,41 @@ fn build_turn_prompt(location: &str, player_role: &str, selected: &str) -> Strin
     )
 }
 
+fn resolve_runtime_model_config(
+    paths: &AppPaths,
+    snapshot: &crate::domain::SaveSnapshot,
+) -> Result<ModelProviderConfig, String> {
+    if snapshot.model_profile_id.trim().is_empty() {
+        return Err("当前存档未绑定模型，请到 AI 设置页修复后重新创建或迁移存档".to_string());
+    }
+    let global_data = load_global_data(paths)?;
+    let profile = global_data
+        .ai_settings
+        .models
+        .iter()
+        .find(|item| item.id == snapshot.model_profile_id)
+        .ok_or_else(|| "当前存档绑定模型不存在，请到 AI 设置页修复".to_string())?;
+    let api_key_missing = profile
+        .api_key
+        .as_ref()
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(true);
+    if api_key_missing {
+        return Err("当前存档绑定模型未配置 API Key，请到 AI 设置页修复".to_string());
+    }
+
+    Ok(ModelProviderConfig {
+        provider_type: profile.provider_type.clone(),
+        provider: profile.provider.clone(),
+        base_url: profile.base_url.clone(),
+        model: profile.model.clone(),
+        api_key: profile.api_key.clone(),
+        temperature: profile.temperature,
+        max_tokens: profile.max_tokens,
+        timeout_ms: profile.timeout_ms,
+    })
+}
+
 fn persist_turn_result(
     paths: &AppPaths,
     turn_input: TurnInput,
@@ -222,14 +261,21 @@ fn persist_turn_result(
 
     write_snapshot(paths, &snapshot)?;
     write_meta(paths, &meta)?;
-    append_ndjson(&paths.save_dir(&snapshot.save_id).join("events.ndjson"), &log)?;
+    append_ndjson(
+        &paths.save_dir(&snapshot.save_id).join("events.ndjson"),
+        &log,
+    )?;
 
     Ok(result)
 }
 
-pub async fn run_turn_with_provider(paths: &AppPaths, turn_input: TurnInput) -> Result<TurnResult, String> {
+pub async fn run_turn_with_provider(
+    paths: &AppPaths,
+    turn_input: TurnInput,
+) -> Result<TurnResult, String> {
     let snapshot = load_snapshot(paths, &turn_input.save_id)?;
     let meta = load_meta(paths, &turn_input.save_id)?;
+    let runtime_config = resolve_runtime_model_config(paths, &snapshot)?;
     let selected = turn_input
         .custom_text
         .clone()
@@ -237,8 +283,12 @@ pub async fn run_turn_with_provider(paths: &AppPaths, turn_input: TurnInput) -> 
         .unwrap_or_else(|| "观察周围".to_string());
 
     let narration = generate_narration(
-        &snapshot.model_config,
-        &build_turn_prompt(&snapshot.current_location_id, &snapshot.player_role, &selected),
+        &runtime_config,
+        &build_turn_prompt(
+            &snapshot.current_location_id,
+            &snapshot.player_role,
+            &selected,
+        ),
     )
     .await?;
     let result = TurnResult {
@@ -258,6 +308,7 @@ pub async fn run_turn_stream_with_provider(
 ) -> Result<TurnResult, String> {
     let snapshot = load_snapshot(paths, &turn_input.save_id)?;
     let meta = load_meta(paths, &turn_input.save_id)?;
+    let runtime_config = resolve_runtime_model_config(paths, &snapshot)?;
     let selected = turn_input
         .custom_text
         .clone()
@@ -265,8 +316,12 @@ pub async fn run_turn_stream_with_provider(
         .unwrap_or_else(|| "观察周围".to_string());
 
     let narration = stream_narration(
-        &snapshot.model_config,
-        &build_turn_prompt(&snapshot.current_location_id, &snapshot.player_role, &selected),
+        &runtime_config,
+        &build_turn_prompt(
+            &snapshot.current_location_id,
+            &snapshot.player_role,
+            &selected,
+        ),
         on_chunk,
     )
     .await?;

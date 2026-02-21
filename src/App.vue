@@ -6,11 +6,7 @@
           <p class="start-kicker">AI ROLEPLAYING GAME</p>
           <h1 class="start-title">RoleClaw</h1>
         </div>
-        <GameSettingsMenu
-          title="主菜单"
-          subtitle="选择你的下一步行动"
-          @select="handleMenuSelect"
-        />
+        <GameSettingsMenu title="主菜单" subtitle="选择你的下一步行动" @select="handleMenuSelect" />
       </div>
     </div>
 
@@ -32,6 +28,9 @@
 
       <section v-if="view === 'new'" class="panel max-w-3xl">
         <h2 class="panel-title">开始游戏</h2>
+        <p v-if="!defaultModelId" class="mb-3 text-sm text-muted-foreground">
+          尚未设置默认 AI 模型。请先前往“AI设置”新增模型并设为默认。
+        </p>
         <div class="grid gap-4 md:grid-cols-2">
           <label class="field">
             <span>存档名称</span>
@@ -49,10 +48,18 @@
               </option>
             </select>
           </label>
+          <label class="field md:col-span-2">
+            <span>AI模型</span>
+            <select v-model="newSave.modelProfileId" class="input">
+              <option v-for="model in aiModels" :key="model.id" :value="model.id">
+                {{ model.provider }}/{{ model.model }}
+              </option>
+            </select>
+          </label>
         </div>
         <div class="mt-4 flex gap-2">
           <button class="btn" @click="setView('menu')">返回</button>
-          <button class="btn btn-primary" @click="createNewSave">生成世界并开始</button>
+          <button class="btn btn-primary" :disabled="!defaultModelId" @click="createNewSave">生成世界并开始</button>
         </div>
       </section>
 
@@ -77,13 +84,16 @@
         </div>
       </section>
 
-      <section v-if="view === 'ai-settings'" class="panel max-w-3xl">
+      <section v-if="view === 'ai-settings'" class="panel w-full ai-settings-panel">
         <h2 class="panel-title">AI设置</h2>
         <p class="text-sm text-muted-foreground">当前协议类型仅支持 OpenAI Compatible。</p>
 
-        <div class="ai-grid mt-4">
+        <div class="ai-layout mt-4">
           <div class="ai-block">
-            <h3 class="ai-block-title">连接配置</h3>
+            <div class="ai-block-head">
+              <h3 class="ai-block-title">{{ editingModelId ? "编辑模型" : "新建模型" }}</h3>
+              <p class="text-xs text-muted-foreground">左侧维护模型连接信息，保存后立即生效。</p>
+            </div>
             <div class="grid gap-4 md:grid-cols-2">
               <label class="field">
                 <span>协议类型</span>
@@ -91,44 +101,72 @@
               </label>
               <label class="field">
                 <span>Provider 名称</span>
-                <input v-model="newSave.modelConfig.providerName" class="input" placeholder="例如 OpenAI / DeepSeek" />
+                <input v-model="aiDraft.provider" class="input" placeholder="例如 OpenAI / DeepSeek" />
               </label>
               <label class="field md:col-span-2">
                 <span>Base URL</span>
-                <input v-model="newSave.modelConfig.baseUrl" class="input" placeholder="例如 https://api.openai.com/v1" />
+                <input v-model="aiDraft.baseUrl" class="input" placeholder="例如 https://api.openai.com/v1" />
               </label>
               <label class="field md:col-span-2">
                 <span>API Key</span>
-                <input v-model="newSave.modelConfig.apiKey" class="input" type="password" placeholder="sk-..." />
+                <input v-model="aiDraft.apiKey" class="input" type="password" placeholder="sk-..." />
               </label>
+              <label class="field md:col-span-2">
+                <span>模型名</span>
+                <input v-model="aiDraft.model" class="input" />
+              </label>
+              <label class="field">
+                <span>Temperature</span>
+                <input v-model.number="aiDraft.temperature" class="input" type="number" step="0.1" />
+              </label>
+              <label class="field">
+                <span>Timeout(ms)</span>
+                <input v-model.number="aiDraft.timeoutMs" class="input" type="number" step="100" />
+              </label>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button class="btn" @click="testAiDraft">连通性测试</button>
+              <button class="btn btn-primary" @click="saveAiModel">保存模型</button>
+              <button class="btn" @click="resetAiDraft">重置为新建</button>
+            </div>
+
+            <div v-if="modelCheckMsg" class="mt-3 model-check-msg"
+              :class="modelCheckOk ? 'model-check-success' : 'model-check-fail'">
+              <p class="text-sm">{{ modelCheckMsg }}</p>
+              <button v-if="modelCheckOk === false" class="btn model-check-copy-btn" @click="copyModelCheckError">
+                {{ copiedModelCheck ? "已复制" : "复制失败原因" }}
+              </button>
             </div>
           </div>
 
           <div class="ai-block">
-            <h3 class="ai-block-title">模型参数</h3>
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="field md:col-span-2">
-                <span>模型名</span>
-                <input v-model="newSave.modelConfig.model" class="input" />
-              </label>
-              <label class="field">
-                <span>Temperature</span>
-                <input v-model.number="newSave.modelConfig.temperature" class="input" type="number" step="0.1" />
-              </label>
-              <label class="field">
-                <span>Max Tokens</span>
-                <input v-model.number="newSave.modelConfig.maxTokens" class="input" type="number" />
-              </label>
+            <div class="ai-block-head">
+              <h3 class="ai-block-title">已配置模型</h3>
+              <p class="text-xs text-muted-foreground">共 {{ aiModels.length }} 个 · 默认 {{ defaultModelId || "未设置" }}</p>
+            </div>
+            <div class="ai-list">
+              <div v-for="model in aiModels" :key="model.id" class="ai-list-item"
+                :class="{ 'ai-list-item-active': editingModelId === model.id }" @click="selectAiModel(model.id)">
+                <div class="ai-list-main">
+                  <p class="font-medium">{{ model.provider }}/{{ model.model }}</p>
+                  <p class="text-xs text-muted-foreground">{{ model.providerType }}</p>
+                  <p class="text-xs text-muted-foreground truncate">{{ model.baseUrl }}</p>
+                </div>
+                <div class="ai-list-actions">
+                  <span v-if="defaultModelId === model.id" class="ai-default-badge">默认</span>
+                  <button class="ai-action-btn" @click.stop="markDefaultAiModel(model.id)">设为默认</button>
+                  <button class="ai-action-btn ai-action-btn-danger"
+                    @click.stop="confirmRemoveAiModel(model.id)">删除</button>
+                </div>
+              </div>
+              <div v-if="aiModels.length === 0" class="ai-empty">
+                <p class="text-sm text-muted-foreground">当前还没有配置任何 AI 模型。</p>
+                <p class="text-xs text-muted-foreground">请在左侧填写参数并点击“保存模型”。</p>
+              </div>
             </div>
           </div>
         </div>
-
-        <div class="mt-4 flex flex-wrap gap-2">
-          <button class="btn" @click="checkModel">连通性测试</button>
-          <button class="btn btn-primary" @click="saveGlobalGameData">保存AI设置</button>
-        </div>
-        <p v-if="modelCheckMsg" class="mt-2 rounded border p-2 text-sm model-check-msg">{{ modelCheckMsg }}</p>
-        <p class="mt-2 text-xs text-muted-foreground">说明：API Key 仅保存在全局设置中，存档不会保存 API Key。</p>
       </section>
 
       <section v-if="view === 'settings'" class="panel max-w-3xl">
@@ -158,25 +196,16 @@
       </section>
 
       <section v-if="view === 'cards'">
-        <WorldCardManager
-          :world-cards="worldCards"
-          :card-import-text="cardImportText"
-          :card-export-path="cardExportPath"
-          @update:card-import-text="cardImportText = $event"
-          @update:card-export-path="cardExportPath = $event"
-          @import-card="importCardFromText"
-          @export-card="exportCard"
-        />
+        <WorldCardManager :world-cards="worldCards" :card-import-text="cardImportText"
+          :card-export-path="cardExportPath" @update:card-import-text="cardImportText = $event"
+          @update:card-export-path="cardExportPath = $event" @import-card="importCardFromText"
+          @export-card="exportCard" />
       </section>
 
       <section v-if="view === 'game' && activeSave" class="grid gap-4 lg:grid-cols-[1.2fr_1.8fr_1fr]">
         <div class="panel">
           <h2 class="panel-title">地图</h2>
-          <GameMapCanvas
-            :snapshot="activeSave.snapshot"
-            :reachable-locations="reachableLocations"
-            @move="move"
-          />
+          <GameMapCanvas :snapshot="activeSave.snapshot" :reachable-locations="reachableLocations" @move="move" />
         </div>
 
         <div class="panel">
@@ -184,22 +213,13 @@
           <p class="mb-3 text-sm leading-6">{{ narrationText }}</p>
 
           <div class="space-y-2">
-            <button
-              v-for="opt in options"
-              :key="opt.id"
-              class="btn w-full text-left"
-              @click="submitOption(opt.id)"
-            >
+            <button v-for="opt in options" :key="opt.id" class="btn w-full text-left" @click="submitOption(opt.id)">
               [{{ opt.kind }}] {{ opt.text }}
             </button>
           </div>
 
           <div class="mt-3 flex gap-2">
-            <input
-              v-model="customInput"
-              class="input flex-1"
-              placeholder="输入你的自定义第四选项..."
-            />
+            <input v-model="customInput" class="input flex-1" placeholder="输入你的自定义第四选项..." />
             <button class="btn btn-primary" @click="submitCustom">提交</button>
           </div>
         </div>
@@ -209,7 +229,7 @@
           <p class="text-sm">存档：{{ activeSave.meta.name }}</p>
           <p class="text-sm">回合：{{ activeSave.snapshot.turn }}</p>
           <p class="text-sm">角色：{{ activeSave.snapshot.playerRole }}</p>
-          <p class="text-sm">模型：{{ activeSave.snapshot.modelConfig.provider }} / {{ activeSave.snapshot.modelConfig.model }}</p>
+          <p class="text-sm">模型：{{ activeSave.snapshot.modelLabel || activeSave.meta.model }}</p>
 
           <h3 class="mt-4 font-medium">最近变化</h3>
           <ul class="mt-2 list-disc pl-5 text-sm">
@@ -219,13 +239,8 @@
       </section>
 
       <div v-if="showInGameMenu && view === 'game'" class="overlay">
-        <GameSettingsMenu
-          title="游戏菜单"
-          subtitle="按 Esc 关闭菜单并继续游戏"
-          :show-close="true"
-          @select="handleMenuSelect"
-          @close="showInGameMenu = false"
-        />
+        <GameSettingsMenu title="游戏菜单" subtitle="按 Esc 关闭菜单并继续游戏" :show-close="true" @select="handleMenuSelect"
+          @close="showInGameMenu = false" />
       </div>
     </template>
   </div>
@@ -243,6 +258,7 @@ const {
   view,
   errorMsg,
   modelCheckMsg,
+  modelCheckOk,
   narrationText,
   stateChanges,
   options,
@@ -254,12 +270,21 @@ const {
   activeSave,
   newSave,
   gameSettings,
+  aiModels,
+  defaultModelId,
+  editingModelId,
+  aiDraft,
   reachableLocations,
   setView,
   refreshHome,
   openSave,
   removeSave,
-  checkModel,
+  selectAiModel,
+  resetAiDraft,
+  testAiDraft,
+  saveAiModel,
+  removeAiModel,
+  markDefaultAiModel,
   saveGlobalGameData,
   createNewSave,
   submitOption,
@@ -270,6 +295,7 @@ const {
 } = useGameApp();
 
 const showInGameMenu = ref(false);
+const copiedModelCheck = ref(false);
 
 function handleMenuSelect(action: "start" | "saves" | "ai" | "cards" | "settings" | "exit") {
   if (action === "exit") {
@@ -279,6 +305,11 @@ function handleMenuSelect(action: "start" | "saves" | "ai" | "cards" | "settings
 
   showInGameMenu.value = false;
   if (action === "start") {
+    if (!defaultModelId.value) {
+      errorMsg.value = "无法开始游戏：当前没有默认 AI 模型。请先到 AI 设置新增模型并设为默认。";
+      setView("ai-settings");
+      return;
+    }
     setView("new");
   } else if (action === "saves") {
     setView("saves");
@@ -297,6 +328,29 @@ async function exitGame() {
     await appWindow.close();
   } catch {
     window.close();
+  }
+}
+
+async function confirmRemoveAiModel(modelId: string) {
+  const ok = window.confirm("确认删除该 AI 模型吗？");
+  if (!ok) {
+    return;
+  }
+  await removeAiModel(modelId);
+}
+
+async function copyModelCheckError() {
+  if (!modelCheckMsg.value || modelCheckOk.value !== false) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(modelCheckMsg.value);
+    copiedModelCheck.value = true;
+    setTimeout(() => {
+      copiedModelCheck.value = false;
+    }, 1200);
+  } catch {
+    copiedModelCheck.value = false;
   }
 }
 
@@ -323,6 +377,10 @@ watch(
     }
   }
 );
+
+watch(modelCheckMsg, () => {
+  copiedModelCheck.value = false;
+});
 
 onMounted(async () => {
   await refreshHome();
@@ -411,6 +469,7 @@ onBeforeUnmount(() => {
     transform: translateY(14px) scale(0.985);
     filter: blur(2px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -423,6 +482,7 @@ onBeforeUnmount(() => {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -430,11 +490,13 @@ onBeforeUnmount(() => {
 }
 
 @keyframes title-glow {
+
   0%,
   100% {
     opacity: 0.65;
     transform: scaleX(0.96);
   }
+
   50% {
     opacity: 1;
     transform: scaleX(1.03);
@@ -492,6 +554,11 @@ onBeforeUnmount(() => {
   background: var(--game-btn-hover-bg);
 }
 
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   background: var(--game-btn-primary-bg);
   color: var(--game-btn-primary-text);
@@ -507,25 +574,161 @@ onBeforeUnmount(() => {
   color: var(--game-error-text);
 }
 
-.ai-grid {
+.ai-layout {
   display: grid;
-  gap: 0.8rem;
+  gap: 1rem;
+  grid-template-columns: minmax(420px, 1.7fr) minmax(360px, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 960px) {
+  .ai-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ai-block {
   border: 1px solid var(--game-panel-border);
   border-radius: var(--radius-lg);
-  padding: 0.9rem;
+  padding: 1rem;
   background: color-mix(in oklab, var(--game-panel-bg) 92%, white 8%);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ai-settings-panel {
+  min-height: calc(100dvh - 11rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-block-head {
+  margin-bottom: 0.75rem;
 }
 
 .ai-block-title {
-  margin-bottom: 0.7rem;
   font-weight: 600;
 }
 
 .model-check-msg {
+  border: 1px solid var(--game-panel-border);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.model-check-success {
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 55%, var(--game-panel-border) 45%);
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 14%, transparent);
+}
+
+.model-check-fail {
+  border-color: var(--game-error-border);
+  background: color-mix(in oklab, var(--game-error-bg) 75%, transparent);
+}
+
+.model-check-copy-btn {
+  white-space: nowrap;
+  padding: 0.2rem 0.56rem;
+  font-size: 0.76rem;
   border-color: var(--game-panel-border);
-  background: color-mix(in oklab, var(--game-btn-primary-bg) 8%, transparent);
+  background: color-mix(in oklab, var(--game-panel-bg) 92%, transparent);
+  color: var(--game-btn-text);
+}
+
+.model-check-copy-btn:hover {
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 35%, var(--game-panel-border) 65%);
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 10%, var(--game-panel-bg) 90%);
+}
+
+.ai-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: 1;
+  min-height: 220px;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.ai-list-item {
+  border: 1px solid var(--game-panel-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--game-panel-bg) 96%, transparent);
+  padding: 0.68rem 0.72rem;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.ai-list-item:hover {
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 26%, var(--game-panel-border) 74%);
+  background: color-mix(in oklab, var(--game-panel-bg) 90%, white 10%);
+}
+
+.ai-list-item-active {
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 48%, var(--game-panel-border) 52%);
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 10%, var(--game-panel-bg) 90%);
+}
+
+.ai-list-main {
+  min-width: 0;
+}
+
+.ai-list-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-content: flex-start;
+  min-width: 182px;
+}
+
+.ai-action-btn {
+  border: 1px solid var(--game-panel-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--game-panel-bg) 94%, transparent);
+  color: var(--game-btn-text);
+  font-size: 0.76rem;
+  line-height: 1;
+  padding: 0.34rem 0.52rem;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.ai-action-btn:hover {
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 38%, var(--game-panel-border) 62%);
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 8%, var(--game-panel-bg) 92%);
+}
+
+.ai-action-btn-danger:hover {
+  border-color: color-mix(in oklab, var(--game-error-border) 60%, var(--game-panel-border) 40%);
+  background: color-mix(in oklab, var(--game-error-bg) 25%, var(--game-panel-bg) 75%);
+}
+
+.ai-default-badge {
+  border: 1px solid color-mix(in oklab, var(--game-btn-primary-bg) 45%, var(--game-panel-border) 55%);
+  color: color-mix(in oklab, var(--game-btn-text) 82%, var(--game-btn-primary-text) 18%);
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 10%, var(--game-panel-bg) 90%);
+  border-radius: 999px;
+  padding: 0.1rem 0.46rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.ai-empty {
+  border: 1px dashed var(--game-panel-border);
+  border-radius: var(--radius-md);
+  padding: 0.8rem;
+  background: color-mix(in oklab, var(--game-panel-bg) 94%, white 6%);
 }
 </style>

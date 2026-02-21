@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 import {
   createSave,
+  deleteAiModel,
   deleteSave,
   exportWorldCard,
   getGlobalGameData,
@@ -11,11 +12,14 @@ import {
   loadSave,
   moveToLocation,
   runTurnStream,
+  setDefaultAiModel,
   testModelProvider,
   updateGlobalGameData,
+  upsertAiModel,
 } from "@/lib/api";
 import { normalizeError } from "@/lib/errors";
 import type {
+  AiModelProfile,
   CreateSaveConfig,
   DialogueOption,
   GameSettings,
@@ -25,25 +29,34 @@ import type {
   WorldCard,
 } from "@/types";
 
-function defaultAiModelConfig() {
+function defaultAiModelDraft(): AiModelProfile {
   return {
-    provider: "openai_compatible" as const,
-    providerName: "OpenAI Compatible",
+    id: "",
+    providerType: "openai_compatible",
+    provider: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4.1",
     apiKey: "",
     temperature: 0.7,
-    maxTokens: 100000,
     timeoutMs: 25000,
+    updatedAt: "",
   };
 }
 
-export type ViewMode = "menu" | "new" | "game" | "cards" | "saves" | "ai-settings" | "settings";
+export type ViewMode =
+  | "menu"
+  | "new"
+  | "game"
+  | "cards"
+  | "saves"
+  | "ai-settings"
+  | "settings";
 
 export function useGameApp() {
   const view = ref<ViewMode>("menu");
   const errorMsg = ref("");
   const modelCheckMsg = ref("");
+  const modelCheckOk = ref<boolean | null>(null);
   const narrationText = ref("欢迎来到 RoleClaw。先创建一个存档开始冒险。");
   const stateChanges = ref<string[]>([]);
   const options = ref<DialogueOption[]>([]);
@@ -59,12 +72,17 @@ export function useGameApp() {
     saveName: "新冒险",
     playerRole: "流浪调查员",
     worldCardId: "",
-    modelConfig: defaultAiModelConfig(),
+    modelProfileId: "",
   });
   const gameSettings = ref<GameSettings>({
     theme: "default",
     messageSpeed: "normal",
   });
+
+  const aiModels = ref<AiModelProfile[]>([]);
+  const defaultModelId = ref<string | null>(null);
+  const editingModelId = ref<string | null>(null);
+  const aiDraft = ref<AiModelProfile>(defaultAiModelDraft());
 
   const reachableLocations = computed(() => {
     if (!activeSave.value) {
@@ -99,15 +117,50 @@ export function useGameApp() {
     view.value = next;
   }
 
+  function applyAiSettings(
+    models: AiModelProfile[],
+    defaultId?: string | null,
+  ) {
+    aiModels.value = models;
+    defaultModelId.value = defaultId ?? null;
+
+    const nextDefault =
+      defaultId && models.some((item) => item.id === defaultId)
+        ? defaultId
+        : models[0]?.id;
+    newSave.value.modelProfileId = nextDefault ?? "";
+
+    if (editingModelId.value) {
+      const editing = models.find((item) => item.id === editingModelId.value);
+      if (editing) {
+        aiDraft.value = { ...editing };
+        return;
+      }
+    }
+
+    if (models.length > 0) {
+      aiDraft.value = { ...models[0] };
+      editingModelId.value = models[0].id;
+    } else {
+      resetAiDraft();
+    }
+  }
+
   async function refreshHome() {
     errorMsg.value = "";
     try {
-      const [saveList, cardList, globalData] = await Promise.all([listSaves(), listWorldCards(), getGlobalGameData()]);
+      const [saveList, cardList, globalData] = await Promise.all([
+        listSaves(),
+        listWorldCards(),
+        getGlobalGameData(),
+      ]);
       saves.value = saveList;
       worldCards.value = cardList;
       gameSettings.value = globalData.gameSettings;
-      const ai = globalData.aiSettings.provider === "openai_compatible" ? globalData.aiSettings : defaultAiModelConfig();
-      newSave.value.modelConfig = { ...newSave.value.modelConfig, ...ai, provider: "openai_compatible" };
+      applyAiSettings(
+        globalData.aiSettings.models,
+        globalData.aiSettings.defaultModelId,
+      );
       if (!newSave.value.worldCardId && cardList.length > 0) {
         newSave.value.worldCardId = cardList[0].id;
       }
@@ -146,12 +199,73 @@ export function useGameApp() {
     }
   }
 
-  async function checkModel() {
+  function selectAiModel(id: string) {
+    const model = aiModels.value.find((item) => item.id === id);
+    if (!model) {
+      errorMsg.value = "模型不存在";
+      return;
+    }
+    editingModelId.value = id;
+    aiDraft.value = { ...model };
+    modelCheckMsg.value = "";
+    modelCheckOk.value = null;
+  }
+
+  function resetAiDraft() {
+    editingModelId.value = null;
+    aiDraft.value = defaultAiModelDraft();
+    modelCheckMsg.value = "";
+    modelCheckOk.value = null;
+  }
+
+  async function testAiDraft() {
+    errorMsg.value = "";
+    modelCheckMsg.value = "";
+    modelCheckOk.value = null;
+    try {
+      const result = await testModelProvider(aiDraft.value);
+      modelCheckMsg.value = result.message;
+      modelCheckOk.value = true;
+    } catch (err) {
+      modelCheckMsg.value = normalizeError(err);
+      modelCheckOk.value = false;
+    }
+  }
+
+  async function saveAiModel() {
     errorMsg.value = "";
     modelCheckMsg.value = "";
     try {
-      const result = await testModelProvider(newSave.value.modelConfig);
-      modelCheckMsg.value = result.message;
+      const saved = await upsertAiModel({
+        ...aiDraft.value,
+        id: editingModelId.value ?? aiDraft.value.id,
+      });
+      await refreshHome();
+      selectAiModel(saved.id);
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  async function removeAiModel(modelId: string) {
+    errorMsg.value = "";
+    modelCheckMsg.value = "";
+    try {
+      await deleteAiModel(modelId);
+      await refreshHome();
+      if (editingModelId.value === modelId) {
+        resetAiDraft();
+      }
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  async function markDefaultAiModel(modelId: string) {
+    errorMsg.value = "";
+    try {
+      const settings = await setDefaultAiModel(modelId);
+      applyAiSettings(settings.models, settings.defaultModelId);
     } catch (err) {
       setError(err);
     }
@@ -160,7 +274,13 @@ export function useGameApp() {
   async function createNewSave() {
     errorMsg.value = "";
     try {
-      const worldInit = await generateWorld(newSave.value.worldCardId, newSave.value.playerRole);
+      if (!newSave.value.modelProfileId) {
+        throw new Error("请先在 AI 设置里配置并选择一个默认模型");
+      }
+      const worldInit = await generateWorld(
+        newSave.value.worldCardId,
+        newSave.value.playerRole,
+      );
       const meta = await createSave({ ...newSave.value, worldInit });
       await refreshHome();
       await openSave(meta.id, true);
@@ -174,7 +294,10 @@ export function useGameApp() {
     try {
       await updateGlobalGameData({
         gameSettings: gameSettings.value,
-        aiSettings: newSave.value.modelConfig,
+        aiSettings: {
+          models: aiModels.value,
+          defaultModelId: defaultModelId.value,
+        },
       });
     } catch (err) {
       setError(err);
@@ -197,9 +320,12 @@ export function useGameApp() {
     errorMsg.value = "";
     try {
       narrationText.value = "";
-      const result = await runTurnStream({ saveId: activeSave.value.meta.id, optionId }, (chunk) => {
-        narrationText.value += chunk;
-      });
+      const result = await runTurnStream(
+        { saveId: activeSave.value.meta.id, optionId },
+        (chunk) => {
+          narrationText.value += chunk;
+        },
+      );
       await applyTurnResult(result);
     } catch (err) {
       setError(err);
@@ -220,7 +346,7 @@ export function useGameApp() {
         },
         (chunk) => {
           narrationText.value += chunk;
-        }
+        },
       );
       customInput.value = "";
       await applyTurnResult(result);
@@ -236,7 +362,10 @@ export function useGameApp() {
     errorMsg.value = "";
     try {
       const result = await moveToLocation(activeSave.value.meta.id, locationId);
-      stateChanges.value = [result.message, ...result.triggeredEventIds.map((id) => `触发 ${id}`)];
+      stateChanges.value = [
+        result.message,
+        ...result.triggeredEventIds.map((id) => `触发 ${id}`),
+      ];
       await openSave(activeSave.value.meta.id, false);
     } catch (err) {
       setError(err);
@@ -275,6 +404,7 @@ export function useGameApp() {
     view,
     errorMsg,
     modelCheckMsg,
+    modelCheckOk,
     narrationText,
     stateChanges,
     options,
@@ -286,13 +416,22 @@ export function useGameApp() {
     activeSave,
     newSave,
     gameSettings,
+    aiModels,
+    defaultModelId,
+    editingModelId,
+    aiDraft,
     reachableLocations,
     goMenu,
     setView,
     refreshHome,
     openSave,
     removeSave,
-    checkModel,
+    selectAiModel,
+    resetAiDraft,
+    testAiDraft,
+    saveAiModel,
+    removeAiModel,
+    markDefaultAiModel,
     saveGlobalGameData,
     createNewSave,
     submitOption,

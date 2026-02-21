@@ -1,14 +1,32 @@
-export type Provider = "openai_compatible";
+export type ProviderType = "openai_compatible";
 
 export interface ModelProviderConfig {
-  provider: Provider;
-  providerName: string;
+  providerType: ProviderType;
+  provider: string;
   baseUrl: string;
   model: string;
   apiKey?: string;
   temperature: number;
-  maxTokens: number;
+  maxTokens?: number;
   timeoutMs: number;
+}
+
+export interface AiModelProfile {
+  id: string;
+  providerType: ProviderType;
+  provider: string;
+  baseUrl: string;
+  model: string;
+  apiKey?: string;
+  temperature: number;
+  maxTokens?: number;
+  timeoutMs: number;
+  updatedAt: string;
+}
+
+export interface AiSettings {
+  models: AiModelProfile[];
+  defaultModelId?: string | null;
 }
 
 export interface WorldRule {
@@ -68,7 +86,7 @@ export interface CreateSaveConfig {
   saveName: string;
   playerRole: string;
   worldCardId: string;
-  modelConfig: ModelProviderConfig;
+  modelProfileId: string;
   worldInit?: WorldInit;
 }
 
@@ -80,6 +98,7 @@ export interface SaveMeta {
   worldCardId: string;
   currentTurn: number;
   playerRole: string;
+  modelProfileId: string;
   provider: string;
   model: string;
 }
@@ -93,7 +112,8 @@ export interface SaveSnapshot {
   worldSummary: string;
   locations: LocationNode[];
   paths: PathEdge[];
-  modelConfig: ModelProviderConfig;
+  modelProfileId: string;
+  modelLabel: string;
   activeEventIds: string[];
 }
 
@@ -150,5 +170,5 @@ export interface GameSettings {
 
 export interface GlobalGameData {
   gameSettings: GameSettings;
-  aiSettings: ModelProviderConfig;
+  aiSettings: AiSettings;
 }

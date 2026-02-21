@@ -4,14 +4,55 @@ use serde_json::Value;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelProviderConfig {
+    pub provider_type: String,
     pub provider: String,
-    pub provider_name: String,
     pub base_url: String,
     pub model: String,
     pub api_key: Option<String>,
+    #[serde(default = "default_model_temperature")]
     pub temperature: f32,
+    #[serde(default = "default_model_max_tokens_compat")]
     pub max_tokens: u32,
+    #[serde(default = "default_model_timeout_ms")]
     pub timeout_ms: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AiModelProfile {
+    pub id: String,
+    pub provider_type: String,
+    pub provider: String,
+    pub base_url: String,
+    pub model: String,
+    pub api_key: Option<String>,
+    #[serde(default = "default_model_temperature")]
+    pub temperature: f32,
+    #[serde(default = "default_model_max_tokens_compat")]
+    pub max_tokens: u32,
+    #[serde(default = "default_model_timeout_ms")]
+    pub timeout_ms: u32,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AiSettings {
+    pub models: Vec<AiModelProfile>,
+    pub default_model_id: Option<String>,
+}
+
+fn default_model_temperature() -> f32 {
+    0.7
+}
+
+fn default_model_max_tokens_compat() -> u32 {
+    // Compatibility field. Runtime max tokens are controlled by scene strategy.
+    100000
+}
+
+fn default_model_timeout_ms() -> u32 {
+    25000
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -89,6 +130,8 @@ pub struct SaveMeta {
     pub world_card_id: String,
     pub current_turn: u32,
     pub player_role: String,
+    #[serde(default)]
+    pub model_profile_id: String,
     pub provider: String,
     pub model: String,
 }
@@ -104,7 +147,10 @@ pub struct SaveSnapshot {
     pub world_summary: String,
     pub locations: Vec<LocationNode>,
     pub paths: Vec<PathEdge>,
-    pub model_config: ModelProviderConfig,
+    #[serde(default)]
+    pub model_profile_id: String,
+    #[serde(default)]
+    pub model_label: String,
     pub active_event_ids: Vec<String>,
 }
 
@@ -122,7 +168,7 @@ pub struct CreateSaveConfig {
     pub save_name: String,
     pub player_role: String,
     pub world_card_id: String,
-    pub model_config: ModelProviderConfig,
+    pub model_profile_id: String,
     pub world_init: Option<WorldInit>,
 }
 
@@ -211,5 +257,5 @@ pub struct GameSettings {
 #[serde(rename_all = "camelCase")]
 pub struct GlobalGameData {
     pub game_settings: GameSettings,
-    pub ai_settings: ModelProviderConfig,
+    pub ai_settings: AiSettings,
 }
