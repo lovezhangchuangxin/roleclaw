@@ -219,6 +219,38 @@ export interface DialogueOption {
   text: string;
 }
 
+export interface StoryState {
+  title: string;
+  summary: string;
+  tension: string;
+  sceneTags: string[];
+}
+
+export interface TaskStateItem {
+  id: string;
+  title: string;
+  stage: number;
+  status: string;
+  note: string;
+}
+
+export interface TaskState {
+  items: TaskStateItem[];
+}
+
+export interface RelationshipDelta {
+  source: string;
+  target: string;
+  delta: number;
+  reason: string;
+}
+
+export interface AiMeta {
+  model: string;
+  parser: string;
+  rawChars: number;
+}
+
 export interface TurnInput {
   saveId: string;
   optionId?: string;
@@ -233,6 +265,34 @@ export interface TurnResult {
   eventHints: string[];
   triggeredEventIds: string[];
   stateDiff: Record<string, unknown>;
+  storyState?: StoryState;
+  taskState?: TaskState;
+  relationshipDeltas?: RelationshipDelta[];
+  aiMeta?: AiMeta;
+}
+
+export type TurnStreamPhase =
+  | "start"
+  | "delta"
+  | "preview"
+  | "final"
+  | "error"
+  | "end";
+
+export type TurnStreamEventType =
+  | "narration_delta"
+  | "json_delta"
+  | "state_preview"
+  | "options_preview"
+  | "status"
+  | "error";
+
+export interface TurnStreamPayload {
+  streamId: string;
+  phase: TurnStreamPhase;
+  eventType?: TurnStreamEventType;
+  chunk?: string;
+  data?: Record<string, unknown>;
 }
 
 export interface EventLogEntry {

@@ -1,19 +1,29 @@
 use crate::domain::{
-    CardPromptEvent, CharacterArchetype, DialogueOption, EventAction, EventLogEntry, EventResult,
-    GameEvent, LocationNode, MapCanvas, MapEdge, MapNode, ModelProviderConfig, NpcProfile,
-    PathEdge, QuestState, SaveSnapshot, TriggerCondition, TurnInput, TurnResult, WorldBook,
-    WorldCard, WorldInit, WorldMap,
+    AiMeta, CardPromptEvent, CharacterArchetype, DialogueOption, EventAction, EventLogEntry,
+    EventResult, GameEvent, LocationNode, MapCanvas, MapEdge, MapNode, ModelProviderConfig,
+    NpcProfile, PathEdge, QuestState, RelationshipDelta, SaveSnapshot, StoryState, TaskState,
+    TaskStateItem, TriggerCondition, TurnInput, TurnResult, TurnStateProposal, WorldBook, WorldCard,
+    WorldInit, WorldMap,
 };
-use crate::llm::{generate_narration, stream_narration};
+use crate::llm::{generate_turn_json, stream_turn_json};
 use crate::storage::{
-    append_ndjson, load_global_data, load_meta, load_snapshot, now_iso, read_json, write_meta,
-    write_snapshot, AppPaths,
+    append_ndjson, collect_recent_logs, load_global_data, load_meta, load_snapshot, now_iso,
+    read_json, write_meta, write_snapshot, AppPaths,
 };
 use crate::validate::{validate_event_log_entry, validate_game_event, validate_save_snapshot};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashSet};
 
 const EVENT_CHAIN_MAX_DEPTH: usize = 6;
+const RELATIONSHIP_DELTA_LIMIT_PER_TURN: f64 = 20.0;
+
+#[derive(Debug, Clone)]
+pub struct TurnStreamEvent {
+    pub phase: String,
+    pub event_type: Option<String>,
+    pub chunk: Option<String>,
+    pub data: Option<Value>,
+}
 
 pub fn default_world_cards() -> Vec<WorldCard> {
     vec![
@@ -319,32 +329,6 @@ fn load_prompt_context(
     (event_prompts, chapter_prompt)
 }
 
-fn build_turn_options(snapshot: &SaveSnapshot) -> Vec<DialogueOption> {
-    let loc_name = snapshot
-        .locations
-        .iter()
-        .find(|loc| loc.id == snapshot.current_location_id)
-        .map(|loc| loc.name.as_str())
-        .unwrap_or("当前位置");
-    vec![
-        DialogueOption {
-            id: "opt_plot_1".to_string(),
-            kind: "plot".to_string(),
-            text: format!("围绕{}追查主线线索", loc_name),
-        },
-        DialogueOption {
-            id: "opt_emotion_1".to_string(),
-            kind: "emotion".to_string(),
-            text: "尝试与关键 NPC 建立信任".to_string(),
-        },
-        DialogueOption {
-            id: "opt_risk_1".to_string(),
-            kind: "risk".to_string(),
-            text: "冒险探索高风险区域以获取突破".to_string(),
-        },
-    ]
-}
-
 fn push_short_memory(snapshot: &mut SaveSnapshot, line: String) {
     snapshot.short_term_memory.push(line);
     if snapshot.short_term_memory.len() > 8 {
@@ -357,42 +341,428 @@ fn trim_by_chars(input: &str, max_chars: usize) -> String {
     input.chars().take(max_chars).collect()
 }
 
-fn build_turn_prompt(
+fn summarize_relationships(snapshot: &SaveSnapshot) -> String {
+    let mut pairs = Vec::new();
+    for (id, value) in &snapshot.relationships {
+        let text = value
+            .as_f64()
+            .map(|v| format!("{v:.1}"))
+            .or_else(|| value.as_str().map(|v| v.to_string()))
+            .unwrap_or_else(|| value.to_string());
+        pairs.push(format!("{id}:{text}"));
+    }
+    trim_by_chars(&pairs.join(" | "), 360)
+}
+
+fn summarize_quests(snapshot: &SaveSnapshot) -> String {
+    let lines = snapshot
+        .quests
+        .iter()
+        .map(|quest| {
+            format!(
+                "{}({})-stage:{}-{}",
+                quest.id,
+                quest.title,
+                quest.stage,
+                if quest.completed { "completed" } else { "active" }
+            )
+        })
+        .collect::<Vec<_>>();
+    trim_by_chars(&lines.join(" | "), 400)
+}
+
+fn summarize_recent_logs(logs: &[EventLogEntry]) -> String {
+    let lines = logs
+        .iter()
+        .map(|row| {
+            format!(
+                "T{}:{}|{}",
+                row.turn,
+                trim_by_chars(&row.input.option_id.clone().unwrap_or_default(), 30),
+                trim_by_chars(&row.output.state_changes_preview.join("/"), 60)
+            )
+        })
+        .collect::<Vec<_>>();
+    trim_by_chars(&lines.join(" || "), 500)
+}
+
+fn load_world_card(paths: &AppPaths, meta: &crate::domain::SaveMeta) -> Option<WorldCard> {
+    let path = paths
+        .world_cards_dir
+        .join(format!("{}.json", meta.world_card_id));
+    read_json::<WorldCard>(&path).ok()
+}
+
+fn build_turn_generation_context(
     snapshot: &SaveSnapshot,
     selected: &str,
+    recent_logs: &[EventLogEntry],
+    world_card: Option<&WorldCard>,
     chapter_prompt: &str,
     event_prompts: &[String],
 ) -> String {
-    let system_layer = "[System]\n你是 AI RPG 引擎。仅输出叙事文本。保持事实一致，不违背事实锁。";
+    let current_loc = snapshot
+        .locations
+        .iter()
+        .find(|loc| loc.id == snapshot.current_location_id)
+        .map(|loc| format!("{}({})", loc.name, loc.id))
+        .unwrap_or_else(|| snapshot.current_location_id.clone());
+    let world_layer = if let Some(card) = world_card {
+        format!(
+            "[World Card Layer]\ntitle={}\noverview={}\nbackground={}\ncoreConflicts={}\nplayStyle={}\nchapterGoal={}\neventPrompts={}",
+            card.worldbook.title,
+            trim_by_chars(&card.worldbook.overview, 220),
+            trim_by_chars(&card.worldbook.background, 220),
+            trim_by_chars(&card.worldbook.core_conflicts.join(" | "), 220),
+            trim_by_chars(&card.worldbook.play_style, 120),
+            trim_by_chars(chapter_prompt, 180),
+            trim_by_chars(&event_prompts.join(" || "), 260)
+        )
+    } else {
+        format!(
+            "[World Card Layer]\nchapterGoal={}\neventPrompts={}",
+            trim_by_chars(chapter_prompt, 180),
+            trim_by_chars(&event_prompts.join(" || "), 260)
+        )
+    };
+    let system_layer = "[System Core]\n你是 AI RPG 回合叙事与状态建议器。必须只输出合法 JSON 对象。\n约束：\n1) 不得违背事实锁。\n2) narration 使用第二人称中文，120~260字。\n3) options 必须为3条互斥可执行选项。\n4) 第四选项由玩家自由输入，你不能输出 custom。\n5) 若信息不足，保守推进并保持世界一致性。";
     let world_layer = format!(
-        "[World]\nsummary={}\nvars={}\nfacts={}",
-        trim_by_chars(&snapshot.world_summary, 450),
-        snapshot.world_variables.len(),
-        snapshot.fact_locks.join(" | ")
+        "{}",
+        world_layer
     );
     let save_layer = format!(
-        "[Save]\nturn={}\nlocation={}\nmemory={}\nmid={}",
+        "[Save State Layer]\nturn={}\nlocation={}\nworldSummary={}\nrelationships={}\nquests={}\nworldVariables={}\nshortTermMemory={}\nmidTermSummary={}\nfactLocks={}\nrecentTurns={}",
         snapshot.turn,
-        snapshot.current_location_id,
-        snapshot.short_term_memory.join(" || "),
-        trim_by_chars(&snapshot.mid_term_summary, 240)
+        current_loc,
+        trim_by_chars(&snapshot.world_summary, 450),
+        summarize_relationships(snapshot),
+        summarize_quests(snapshot),
+        trim_by_chars(&snapshot.world_variables.len().to_string(), 80),
+        trim_by_chars(&snapshot.short_term_memory.join(" || "), 320),
+        trim_by_chars(&snapshot.mid_term_summary, 260),
+        trim_by_chars(&snapshot.fact_locks.join(" | "), 320),
+        summarize_recent_logs(recent_logs)
     );
+    let reachable_locations = snapshot
+        .paths
+        .iter()
+        .filter(|edge| !edge.locked)
+        .filter_map(|edge| {
+            if edge.from == snapshot.current_location_id {
+                Some(edge.to.clone())
+            } else if edge.to == snapshot.current_location_id {
+                Some(edge.from.clone())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",");
     let turn_layer = format!(
-        "[Turn]\nplayerRole={}\nplayerAction={}\nchapterGoal={}\neventPrompts={}\n请输出 120-260 字中文叙事，体现环境反馈、NPC反应和可执行线索。",
+        "[Turn Context Layer]\nplayerRole={}\nplayerAction={}\nreachableLocations={}\ncurrentTurnGoal={}",
         snapshot.player_role,
         selected,
-        chapter_prompt,
-        event_prompts.join(" || ")
+        reachable_locations,
+        trim_by_chars(chapter_prompt, 180)
     );
-
-    // Token budget fallback: hard trim full prompt to avoid uncontrolled growth.
+    let output_contract = "[Output Contract]\n输出 JSON 且仅包含以下字段：\n{\n  \"narration\": string,\n  \"options\": [{\"kind\": string, \"text\": string}],\n  \"stateChangesPreview\": string[],\n  \"eventHints\": string[],\n  \"storyState\": {\"title\": string, \"summary\": string, \"tension\": string, \"sceneTags\": string[]},\n  \"taskState\": {\"items\": [{\"id\": string, \"title\": string, \"stage\": number, \"status\": \"active|completed|failed\", \"note\": string}]},\n  \"relationshipDeltas\": [{\"source\": string, \"target\": string, \"delta\": number, \"reason\": string}]\n}\n注意：options 必须恰好3条，且不要输出 id。";
     trim_by_chars(
         &format!(
-            "{}\n{}\n{}\n{}",
-            system_layer, world_layer, save_layer, turn_layer
+            "{}\n{}\n{}\n{}\n{}",
+            system_layer, world_layer, save_layer, turn_layer, output_contract
         ),
-        3600,
+        7000,
     )
+}
+
+fn extract_json_object(raw: &str) -> Option<&str> {
+    let trimmed = raw.trim();
+    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+        return Some(trimmed);
+    }
+    if let Some(start_idx) = trimmed.find('{') {
+        let mut depth = 0i32;
+        let mut end_idx = None;
+        for (idx, ch) in trimmed.char_indices().skip(start_idx) {
+            if ch == '{' {
+                depth += 1;
+            } else if ch == '}' {
+                depth -= 1;
+                if depth == 0 {
+                    end_idx = Some(idx);
+                    break;
+                }
+            }
+        }
+        if let Some(end) = end_idx {
+            return Some(&trimmed[start_idx..=end]);
+        }
+    }
+    None
+}
+
+fn parse_relationship_deltas(value: &Value) -> Vec<RelationshipDelta> {
+    value
+        .get("relationshipDeltas")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let obj = item.as_object()?;
+                    Some(RelationshipDelta {
+                        source: obj
+                            .get("source")
+                            .and_then(Value::as_str)
+                            .unwrap_or("player")
+                            .to_string(),
+                        target: obj
+                            .get("target")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string(),
+                        delta: obj.get("delta").and_then(Value::as_f64).unwrap_or(0.0),
+                        reason: obj
+                            .get("reason")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string(),
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_task_state(value: &Value) -> Option<TaskState> {
+    let items = value
+        .get("taskState")
+        .and_then(Value::as_object)
+        .and_then(|obj| obj.get("items"))
+        .and_then(Value::as_array)?
+        .iter()
+        .filter_map(|item| {
+            let obj = item.as_object()?;
+            let id = obj.get("id").and_then(Value::as_str)?.trim().to_string();
+            if id.is_empty() {
+                return None;
+            }
+            Some(TaskStateItem {
+                id,
+                title: obj
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                stage: obj.get("stage").and_then(Value::as_u64).unwrap_or(1) as u32,
+                status: obj
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .unwrap_or("active")
+                    .to_string(),
+                note: obj
+                    .get("note")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+            })
+        })
+        .collect::<Vec<_>>();
+    Some(TaskState { items })
+}
+
+fn parse_story_state(value: &Value) -> Option<StoryState> {
+    let story = value.get("storyState")?.as_object()?;
+    Some(StoryState {
+        title: story
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        summary: story
+            .get("summary")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        tension: story
+            .get("tension")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        scene_tags: story
+            .get("sceneTags")
+            .and_then(Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(Value::as_str)
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+    })
+}
+
+fn parse_turn_proposal(raw: &str) -> Result<TurnStateProposal, String> {
+    let json_slice =
+        extract_json_object(raw).ok_or_else(|| "模型未返回合法 JSON 对象".to_string())?;
+    let value: Value = serde_json::from_str(json_slice)
+        .map_err(|err| format!("模型 JSON 解析失败: {err}"))?;
+    let narration = value
+        .get("narration")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if narration.is_empty() {
+        return Err("回合 narration 为空".to_string());
+    }
+
+    let mut options = value
+        .get("options")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .take(3)
+                .enumerate()
+                .filter_map(|(idx, item)| {
+                    let obj = item.as_object()?;
+                    let text = obj.get("text").and_then(Value::as_str)?.trim().to_string();
+                    if text.is_empty() {
+                        return None;
+                    }
+                    Some(DialogueOption {
+                        id: format!("opt_{}", idx + 1),
+                        kind: obj
+                            .get("kind")
+                            .and_then(Value::as_str)
+                            .filter(|v| !v.trim().is_empty())
+                            .unwrap_or("approach")
+                            .to_string(),
+                        text,
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    while options.len() < 3 {
+        let idx = options.len() + 1;
+        options.push(DialogueOption {
+            id: format!("opt_{idx}"),
+            kind: "approach".to_string(),
+            text: format!("继续推进当前线索（方案{idx}）"),
+        });
+    }
+
+    let state_changes_preview = value
+        .get("stateChangesPreview")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let event_hints = value
+        .get("eventHints")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    Ok(TurnStateProposal {
+        narration,
+        options,
+        state_changes_preview,
+        event_hints,
+        story_state: parse_story_state(&value),
+        task_state: parse_task_state(&value),
+        relationship_deltas: parse_relationship_deltas(&value),
+    })
+}
+
+fn apply_ai_proposal_with_guardrails(
+    snapshot: &mut SaveSnapshot,
+    proposal: &TurnStateProposal,
+) -> (Vec<String>, Vec<RelationshipDelta>) {
+    let mut changes = Vec::new();
+    let mut accepted_rel = Vec::new();
+
+    for delta in &proposal.relationship_deltas {
+        if delta.target.trim().is_empty() {
+            continue;
+        }
+        let allowed_delta = delta
+            .delta
+            .clamp(-RELATIONSHIP_DELTA_LIMIT_PER_TURN, RELATIONSHIP_DELTA_LIMIT_PER_TURN);
+        let prev = snapshot
+            .relationships
+            .get(&delta.target)
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        let next = (prev + allowed_delta).clamp(-100.0, 100.0);
+        snapshot
+            .relationships
+            .insert(delta.target.clone(), Value::from(next));
+        accepted_rel.push(RelationshipDelta {
+            source: delta.source.clone(),
+            target: delta.target.clone(),
+            delta: next - prev,
+            reason: delta.reason.clone(),
+        });
+        changes.push(format!("关系 {} -> {:.1}", delta.target, next));
+    }
+
+    if let Some(task_state) = proposal.task_state.as_ref() {
+        for item in &task_state.items {
+            if item.id.trim().is_empty() {
+                continue;
+            }
+            let stage = item.stage.clamp(1, 99);
+            if let Some(existing) = snapshot.quests.iter_mut().find(|quest| quest.id == item.id) {
+                existing.stage = stage;
+                existing.completed = item.status == "completed";
+                changes.push(format!(
+                    "任务 {} -> stage {} ({})",
+                    existing.id, existing.stage, item.status
+                ));
+                continue;
+            }
+            if item.status == "active" || item.status == "completed" {
+                snapshot.quests.push(QuestState {
+                    id: item.id.clone(),
+                    title: if item.title.trim().is_empty() {
+                        item.id.clone()
+                    } else {
+                        item.title.clone()
+                    },
+                    stage,
+                    completed: item.status == "completed",
+                });
+                changes.push(format!("新增任务 {}", item.id));
+            }
+        }
+    }
+
+    (changes, accepted_rel)
+}
+
+fn delta_from_seen_chars(full: &str, seen_chars: &mut usize) -> Option<String> {
+    let total_chars = full.chars().count();
+    if total_chars <= *seen_chars {
+        return None;
+    }
+    let delta = full.chars().skip(*seen_chars).collect::<String>();
+    *seen_chars = total_chars;
+    if delta.is_empty() {
+        None
+    } else {
+        Some(delta)
+    }
 }
 
 fn resolve_runtime_model_config(
@@ -426,7 +796,18 @@ fn resolve_runtime_model_config(
         api_key: profile.api_key.clone(),
         temperature: profile.temperature,
         max_tokens: Some(profile.max_tokens),
-        timeout_ms: profile.timeout_ms,
+        timeout_ms: {
+            let mut timeout_ms = profile.timeout_ms.max(30_000);
+            let model_lower = profile.model.to_lowercase();
+            let provider_lower = profile.provider.to_lowercase();
+            if model_lower.contains("reasoner")
+                || model_lower.contains("r1")
+                || provider_lower.contains("deepseek")
+            {
+                timeout_ms = timeout_ms.max(120_000);
+            }
+            timeout_ms
+        },
     })
 }
 
@@ -737,8 +1118,19 @@ pub async fn run_turn_with_provider(
     let (triggered_event_ids, event_changes) =
         execute_events(&mut snapshot, "on_turn_elapsed", &event_context)?;
     let (event_prompts, chapter_prompt) = load_prompt_context(paths, &meta, &snapshot);
-    let prompt = build_turn_prompt(&snapshot, &selected, &chapter_prompt, &event_prompts);
-    let narration = generate_narration(&runtime_config, &prompt).await?;
+    let recent_logs = collect_recent_logs(paths, &turn_input.save_id, 5)?;
+    let world_card = load_world_card(paths, &meta);
+    let prompt = build_turn_generation_context(
+        &snapshot,
+        &selected,
+        &recent_logs,
+        world_card.as_ref(),
+        &chapter_prompt,
+        &event_prompts,
+    );
+    let raw = generate_turn_json(&runtime_config, &prompt).await?;
+    let proposal = parse_turn_proposal(&raw)?;
+    let narration = proposal.narration.clone();
 
     let next_turn = snapshot.turn + 1;
     push_short_memory(&mut snapshot, format!("T{}: {}", next_turn, selected));
@@ -747,26 +1139,43 @@ pub async fn run_turn_with_provider(
         500,
     );
 
-    let state_changes_preview = build_turn_state_changes(&turn_input, event_changes.clone());
+    let (ai_applied_changes, accepted_relationship_deltas) =
+        apply_ai_proposal_with_guardrails(&mut snapshot, &proposal);
+    let mut state_changes_preview = build_turn_state_changes(&turn_input, event_changes.clone());
+    state_changes_preview.extend(proposal.state_changes_preview.clone());
+    state_changes_preview.extend(ai_applied_changes.clone());
+    state_changes_preview.dedup();
+
     let state_diff = json!({
         "turn": {
             "from": snapshot.turn,
             "to": snapshot.turn + 1
         },
         "stateChanges": state_changes_preview,
-        "worldVariables": snapshot.world_variables,
+        "worldVariables": &snapshot.world_variables,
+        "relationships": &snapshot.relationships,
+        "quests": &snapshot.quests,
     });
 
     let result = TurnResult {
         narration,
-        options: build_turn_options(&snapshot),
+        options: proposal.options.clone(),
         state_changes_preview,
         event_hints: triggered_event_ids
             .iter()
             .map(|id| format!("可能触发：{}", id))
+            .chain(proposal.event_hints.iter().cloned())
             .collect(),
         triggered_event_ids,
         state_diff,
+        story_state: proposal.story_state.clone(),
+        task_state: proposal.task_state.clone(),
+        relationship_deltas: accepted_relationship_deltas,
+        ai_meta: Some(AiMeta {
+            model: runtime_config.model.clone(),
+            parser: "serde_json".to_string(),
+            raw_chars: raw.chars().count(),
+        }),
     };
 
     persist_turn_result(paths, turn_input, snapshot, meta, result)
@@ -775,7 +1184,7 @@ pub async fn run_turn_with_provider(
 pub async fn run_turn_stream_with_provider(
     paths: &AppPaths,
     turn_input: TurnInput,
-    on_chunk: &mut (dyn FnMut(&str) -> Result<(), String> + Send),
+    on_event: &mut (dyn FnMut(TurnStreamEvent) -> Result<(), String> + Send),
 ) -> Result<TurnResult, String> {
     let mut snapshot = load_snapshot(paths, &turn_input.save_id)?;
     validate_save_snapshot(&snapshot)?;
@@ -796,37 +1205,146 @@ pub async fn run_turn_stream_with_provider(
     let (triggered_event_ids, event_changes) =
         execute_events(&mut snapshot, "on_turn_elapsed", &event_context)?;
     let (event_prompts, chapter_prompt) = load_prompt_context(paths, &meta, &snapshot);
+    let recent_logs = collect_recent_logs(paths, &turn_input.save_id, 5)?;
+    let world_card = load_world_card(paths, &meta);
+    let prompt = build_turn_generation_context(
+        &snapshot,
+        &selected,
+        &recent_logs,
+        world_card.as_ref(),
+        &chapter_prompt,
+        &event_prompts,
+    );
 
-    let narration = stream_narration(
-        &runtime_config,
-        &build_turn_prompt(&snapshot, &selected, &chapter_prompt, &event_prompts),
-        on_chunk,
-    )
-    .await?;
+    on_event(TurnStreamEvent {
+        phase: "preview".to_string(),
+        event_type: Some("status".to_string()),
+        chunk: None,
+        data: Some(json!({"message":"AI回合生成中"})),
+    })?;
+
+    let mut streamed_raw = String::new();
+    let mut seen_narration_chars = 0usize;
+    let mut emitted_options_preview = false;
+    let mut emitted_state_preview = false;
+    let mut on_chunk = |chunk: &str| -> Result<(), String> {
+        streamed_raw.push_str(chunk);
+        on_event(TurnStreamEvent {
+            phase: "delta".to_string(),
+            event_type: Some("json_delta".to_string()),
+            chunk: Some(chunk.to_string()),
+            data: None,
+        })?;
+        if let Ok(preview) = parse_turn_proposal(&streamed_raw) {
+            if let Some(delta) = delta_from_seen_chars(&preview.narration, &mut seen_narration_chars)
+            {
+                on_event(TurnStreamEvent {
+                    phase: "delta".to_string(),
+                    event_type: Some("narration_delta".to_string()),
+                    chunk: Some(delta),
+                    data: None,
+                })?;
+            }
+            if !emitted_options_preview {
+                emitted_options_preview = true;
+                on_event(TurnStreamEvent {
+                    phase: "preview".to_string(),
+                    event_type: Some("options_preview".to_string()),
+                    chunk: None,
+                    data: Some(json!({ "options": preview.options })),
+                })?;
+            }
+            if !emitted_state_preview {
+                emitted_state_preview = true;
+                on_event(TurnStreamEvent {
+                    phase: "preview".to_string(),
+                    event_type: Some("state_preview".to_string()),
+                    chunk: None,
+                    data: Some(json!({
+                        "storyState": preview.story_state,
+                        "taskState": preview.task_state,
+                        "relationshipDeltas": preview.relationship_deltas,
+                        "stateChangesPreview": preview.state_changes_preview
+                    })),
+                })?;
+            }
+        }
+        Ok(())
+    };
+    let raw = match stream_turn_json(&runtime_config, &prompt, &mut on_chunk).await {
+        Ok(text) => text,
+        Err(stream_err) => {
+            on_event(TurnStreamEvent {
+                phase: "preview".to_string(),
+                event_type: Some("status".to_string()),
+                chunk: None,
+                data: Some(json!({
+                    "message": format!("流式通道异常，已自动切换为非流式：{stream_err}")
+                })),
+            })?;
+            generate_turn_json(&runtime_config, &prompt)
+                .await
+                .map_err(|fallback_err| {
+                    format!(
+                        "流式生成失败({stream_err})，且非流式回退也失败({fallback_err})"
+                    )
+                })?
+        }
+    };
+    let proposal = parse_turn_proposal(&raw)?;
+    let narration = proposal.narration.clone();
 
     let next_turn = snapshot.turn + 1;
     push_short_memory(&mut snapshot, format!("T{}: {}", next_turn, selected));
+    snapshot.mid_term_summary = trim_by_chars(
+        &format!("{}\n最新回合：{}", snapshot.mid_term_summary, narration),
+        500,
+    );
 
-    let state_changes_preview = build_turn_state_changes(&turn_input, event_changes);
+    let (ai_applied_changes, accepted_relationship_deltas) =
+        apply_ai_proposal_with_guardrails(&mut snapshot, &proposal);
+    let mut state_changes_preview = build_turn_state_changes(&turn_input, event_changes);
+    state_changes_preview.extend(proposal.state_changes_preview.clone());
+    state_changes_preview.extend(ai_applied_changes);
+    state_changes_preview.dedup();
+
     let state_diff = json!({
         "turn": {
             "from": snapshot.turn,
             "to": snapshot.turn + 1
         },
-        "worldVariables": snapshot.world_variables,
+        "worldVariables": &snapshot.world_variables,
+        "relationships": &snapshot.relationships,
+        "quests": &snapshot.quests,
     });
 
     let result = TurnResult {
         narration,
-        options: build_turn_options(&snapshot),
+        options: proposal.options.clone(),
         state_changes_preview,
         event_hints: triggered_event_ids
             .iter()
             .map(|id| format!("可能触发：{}", id))
+            .chain(proposal.event_hints.iter().cloned())
             .collect(),
         triggered_event_ids,
         state_diff,
+        story_state: proposal.story_state.clone(),
+        task_state: proposal.task_state.clone(),
+        relationship_deltas: accepted_relationship_deltas,
+        ai_meta: Some(AiMeta {
+            model: runtime_config.model.clone(),
+            parser: "serde_json".to_string(),
+            raw_chars: raw.chars().count(),
+        }),
     };
+
+    on_event(TurnStreamEvent {
+        phase: "final".to_string(),
+        event_type: Some("status".to_string()),
+        chunk: None,
+        data: Some(json!({"message":"回合生成完成"})),
+    })?;
     persist_turn_result(paths, turn_input, snapshot, meta, result)
 }
 

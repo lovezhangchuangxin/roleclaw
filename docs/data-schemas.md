@@ -312,6 +312,26 @@
     ],
     "stateChangesPreview": ["与守卫长关系 +8"],
     "eventHints": ["可能触发：旧王室线索"],
+    "storyState": {
+      "title": "门前试探",
+      "summary": "守卫态度出现松动",
+      "tension": "中",
+      "sceneTags": ["checkpoint", "negotiation"]
+    },
+    "taskState": {
+      "items": [
+        {
+          "id": "quest_gate",
+          "title": "通过北门盘查",
+          "stage": 2,
+          "status": "active",
+          "note": "继续争取守卫信任"
+        }
+      ]
+    },
+    "relationshipDeltas": [
+      { "source": "player", "target": "npc_guard_captain", "delta": 8, "reason": "徽章证明有效" }
+    ],
     "triggeredEventIds": ["evt_gate_badge_check"],
     "stateDiff": {
       "relationships.npc_guard_captain": { "from": -15, "to": -7 }
@@ -329,6 +349,18 @@
 1. `turn` 必须单调递增。
 2. 失败回合（模型异常）不可写入事件行，只记录 error log。
 3. `stateDiff` 仅记录变化字段，禁止整对象快照重复。
+
+## 6.3 回合流式事件对象（turn_stream_chunk）
+
+```json
+{
+  "streamId": "uuid",
+  "phase": "start|delta|preview|final|error|end",
+  "eventType": "narration_delta|json_delta|state_preview|options_preview|status|error",
+  "chunk": "optional string",
+  "data": { "optional": "json object" }
+}
+```
 
 ---
 

@@ -12,6 +12,7 @@ import type {
   SaveBundle,
   SaveMeta,
   TurnInput,
+  TurnStreamPayload,
   TurnResult,
   WorldCard,
   WorldInit,
@@ -52,12 +53,6 @@ export async function runTurn(turnInput: TurnInput): Promise<TurnResult> {
 
 type TurnStreamPhase = "start" | "chunk" | "end";
 
-interface TurnStreamEventPayload {
-  streamId: string;
-  phase: TurnStreamPhase;
-  chunk?: string;
-}
-
 interface WorldCardStreamEventPayload {
   streamId: string;
   phase: TurnStreamPhase;
@@ -73,19 +68,17 @@ function newStreamId(): string {
 
 export async function runTurnStream(
   turnInput: TurnInput,
-  onChunk: (chunk: string) => void,
+  onEvent: (payload: TurnStreamPayload) => void,
 ): Promise<TurnResult> {
   const streamId = newStreamId();
-  const unlisten = await listen<TurnStreamEventPayload>(
+  const unlisten = await listen<TurnStreamPayload>(
     "turn_stream_chunk",
     (event) => {
       const payload = event.payload;
       if (!payload || payload.streamId !== streamId) {
         return;
       }
-      if (payload.phase === "chunk" && payload.chunk) {
-        onChunk(payload.chunk);
-      }
+      onEvent(payload);
     },
   );
 

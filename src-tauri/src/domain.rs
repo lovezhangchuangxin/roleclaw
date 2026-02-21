@@ -286,6 +286,77 @@ pub struct DialogueOption {
     pub text: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct StoryState {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub tension: String,
+    #[serde(default)]
+    pub scene_tags: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskStateItem {
+    pub id: String,
+    pub title: String,
+    pub stage: u32,
+    pub status: String,
+    #[serde(default)]
+    pub note: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskState {
+    #[serde(default)]
+    pub items: Vec<TaskStateItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RelationshipDelta {
+    pub source: String,
+    pub target: String,
+    pub delta: f64,
+    #[serde(default)]
+    pub reason: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AiMeta {
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub parser: String,
+    #[serde(default)]
+    pub raw_chars: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnStateProposal {
+    #[serde(default)]
+    pub narration: String,
+    #[serde(default)]
+    pub options: Vec<DialogueOption>,
+    #[serde(default)]
+    pub state_changes_preview: Vec<String>,
+    #[serde(default)]
+    pub event_hints: Vec<String>,
+    #[serde(default)]
+    pub story_state: Option<StoryState>,
+    #[serde(default)]
+    pub task_state: Option<TaskState>,
+    #[serde(default)]
+    pub relationship_deltas: Vec<RelationshipDelta>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnInput {
@@ -307,6 +378,14 @@ pub struct TurnResult {
     pub triggered_event_ids: Vec<String>,
     #[serde(default)]
     pub state_diff: Value,
+    #[serde(default)]
+    pub story_state: Option<StoryState>,
+    #[serde(default)]
+    pub task_state: Option<TaskState>,
+    #[serde(default)]
+    pub relationship_deltas: Vec<RelationshipDelta>,
+    #[serde(default)]
+    pub ai_meta: Option<AiMeta>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

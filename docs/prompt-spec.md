@@ -80,11 +80,26 @@
   ],
   "stateChangesPreview": ["string"],
   "eventHints": ["string"],
-  "memoryCandidates": {
-    "shortTerm": ["string"],
-    "midTermSummaryPatch": "string",
-    "factLocksAppend": ["string"]
+  "storyState": {
+    "title": "string",
+    "summary": "string",
+    "tension": "string",
+    "sceneTags": ["string"]
+  },
+  "taskState": {
+    "items": [
+      {
+        "id": "quest_xxx",
+        "title": "string",
+        "stage": 2,
+        "status": "active|completed|failed",
+        "note": "string"
+      }
+    ]
   }
+  "relationshipDeltas": [
+    { "source": "player", "target": "npc_guard", "delta": 8, "reason": "string" }
+  ]
 }
 ```
 
@@ -240,6 +255,23 @@
 
 ---
 
+## 8.1 流式事件协议（run_turn_stream）
+
+回合流采用多事件通道，事件字段：
+
+1. `phase`: `start|delta|preview|final|error|end`
+2. `eventType`: `narration_delta|json_delta|state_preview|options_preview|status|error`
+3. `chunk`: 文本增量（可选）
+4. `data`: JSON 对象（可选）
+
+建议消费顺序：
+
+1. 实时消费 `json_delta`，做部分 JSON 解析用于预览。
+2. 若收到 `narration_delta` 则直接更新叙事文本。
+3. 以最终 `TurnResult` 作为权威结果覆盖预览态。
+
+---
+
 ## 9. Provider 适配策略
 
 ## 9.1 OpenAI
@@ -318,4 +350,3 @@
 - 在 `eventHints` 给出弱提示（可选）
 
 3. 禁止在回包中泄露系统提示词和密钥信息。
-

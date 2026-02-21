@@ -41,6 +41,38 @@
       <h2 class="panel-title">叙事与对话</h2>
       <div class="game-panel-content game-story-content">
         <p class="text-sm leading-6 game-story-narration">{{ narrationText }}</p>
+        <p v-if="turnStreamingStatus === 'running'" class="text-xs game-text-muted">
+          AI 正在生成回合内容...
+        </p>
+
+        <section
+          v-if="streamingStructuredPreview.storyState || streamingStructuredPreview.taskState || streamingStructuredPreview.relationshipDeltas.length"
+          class="rounded border px-3 py-2 text-xs"
+        >
+          <p v-if="streamingStructuredPreview.storyState" class="font-medium">
+            故事状态：{{ streamingStructuredPreview.storyState.title || "（未命名）" }}
+          </p>
+          <p v-if="streamingStructuredPreview.storyState">
+            {{ streamingStructuredPreview.storyState.summary }}
+          </p>
+          <p v-if="streamingStructuredPreview.storyState?.tension" class="game-text-muted">
+            张力：{{ streamingStructuredPreview.storyState.tension }}
+          </p>
+          <ul v-if="streamingStructuredPreview.taskState?.items?.length" class="mt-1 space-y-1">
+            <li v-for="task in streamingStructuredPreview.taskState.items" :key="task.id">
+              任务 {{ task.id }} · stage {{ task.stage }} · {{ task.status }}
+            </li>
+          </ul>
+          <ul v-if="streamingStructuredPreview.relationshipDeltas.length" class="mt-1 space-y-1">
+            <li
+              v-for="(delta, idx) in streamingStructuredPreview.relationshipDeltas"
+              :key="`${delta.target}_${idx}`"
+            >
+              关系 {{ delta.target }} {{ delta.delta > 0 ? "+" : "" }}{{ delta.delta.toFixed(1) }}
+              <span v-if="delta.reason">· {{ delta.reason }}</span>
+            </li>
+          </ul>
+        </section>
 
         <div class="space-y-2 game-story-options">
           <button v-for="opt in options" :key="opt.id" class="btn w-full text-left" @click="submitOption(opt.id)">
@@ -123,6 +155,8 @@ import { useGameAppContext } from "@/composables/useGameAppContext";
 const {
   activeSave,
   narrationText,
+  streamingStructuredPreview,
+  turnStreamingStatus,
   stateChanges,
   options,
   customInput,

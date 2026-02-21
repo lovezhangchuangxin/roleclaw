@@ -7,7 +7,7 @@ use crate::domain::{
 use crate::error::AppError;
 use crate::game::{
     apply_manual_event, default_world_cards, generate_world_from_card, project_card_events,
-    run_enter_location_events, run_turn_stream_with_provider, run_turn_with_provider,
+    run_enter_location_events, run_turn_stream_with_provider, run_turn_with_provider, TurnStreamEvent,
     seed_events_for_world,
 };
 use crate::llm::{generate_world_card_json, stream_world_card_json, test_provider_connectivity};
@@ -30,7 +30,9 @@ type ApiResult<T> = Result<T, AppError>;
 struct TurnStreamEventPayload {
     stream_id: String,
     phase: String,
+    event_type: Option<String>,
     chunk: Option<String>,
+    data: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -909,28 +911,45 @@ pub async fn run_turn_stream(
     let begin = TurnStreamEventPayload {
         stream_id: stream_id.clone(),
         phase: "start".to_string(),
+        event_type: Some("status".to_string()),
         chunk: None,
+        data: Some(serde_json::json!({ "message": "stream-start" })),
     };
     let _ = window.emit("turn_stream_chunk", begin);
-    let mut emitter = |chunk: &str| -> Result<(), String> {
+    let mut emitter = |event: TurnStreamEvent| -> Result<(), String> {
         let payload = TurnStreamEventPayload {
             stream_id: stream_id.clone(),
-            phase: "chunk".to_string(),
-            chunk: Some(chunk.to_string()),
+            phase: event.phase,
+            event_type: event.event_type,
+            chunk: event.chunk,
+            data: event.data,
         };
         window
             .emit("turn_stream_chunk", payload)
             .map_err(|e| format!("emit stream chunk failed: {e}"))
     };
 
-    let result = run_turn_stream_with_provider(&paths, turn_input, &mut emitter)
-        .await
-        .map_err(AppError::provider)?;
+    let result = match run_turn_stream_with_provider(&paths, turn_input, &mut emitter).await {
+        Ok(value) => value,
+        Err(err) => {
+            let error_payload = TurnStreamEventPayload {
+                stream_id: stream_id.clone(),
+                phase: "error".to_string(),
+                event_type: Some("error".to_string()),
+                chunk: None,
+                data: Some(serde_json::json!({ "message": err })),
+            };
+            let _ = window.emit("turn_stream_chunk", error_payload);
+            return Err(AppError::provider(err));
+        }
+    };
 
     let end = TurnStreamEventPayload {
         stream_id,
         phase: "end".to_string(),
+        event_type: Some("status".to_string()),
         chunk: None,
+        data: Some(serde_json::json!({ "message": "stream-end" })),
     };
     let _ = window.emit("turn_stream_chunk", end);
     Ok(result)
@@ -1248,6 +1267,10 @@ mod tests {
                 event_hints: vec![],
                 triggered_event_ids: vec![],
                 state_diff: json!({}),
+                story_state: None,
+                task_state: None,
+                relationship_deltas: vec![],
+                ai_meta: None,
             },
             triggered_event_ids: vec![],
             state_diff: json!({}),

@@ -7,7 +7,7 @@ use genai::{Client, ModelIden, ServiceTarget, WebConfig};
 use std::time::Duration;
 
 const CONNECTIVITY_MAX_TOKENS: u32 = 64;
-const TURN_NARRATION_MAX_TOKENS: u32 = 3600;
+const TURN_JSON_MAX_TOKENS: u32 = 5200;
 const WORLD_CARD_MAX_TOKENS: u32 = 6400;
 const PROVIDER_MAX_TOKENS_CAP: u32 = 65_536;
 
@@ -74,8 +74,11 @@ fn build_client(config: &ModelProviderConfig) -> Result<Client, String> {
         Ok(target)
     };
 
-    let web_config =
-        WebConfig::default().with_timeout(Duration::from_millis(config.timeout_ms as u64));
+    // Use idle/read timeout instead of total request timeout:
+    // as long as stream bytes continue to arrive, the request stays alive.
+    let mut web_config =
+        WebConfig::default().with_connect_timeout(Duration::from_millis(15_000));
+    web_config.read_timeout = Some(Duration::from_millis(config.timeout_ms as u64));
 
     Ok(Client::builder()
         .with_web_config(web_config)
@@ -120,29 +123,30 @@ pub async fn test_provider_connectivity(config: &ModelProviderConfig) -> Result<
     ))
 }
 
-pub async fn generate_narration(
+pub async fn generate_turn_json(
     config: &ModelProviderConfig,
     prompt: &str,
 ) -> Result<String, String> {
     let client = build_client(config)?;
-    let req = ChatRequest::from_user(prompt)
-        .with_system("你是一个中文 RPG 叙事引擎，回复仅输出叙事文本，不要解释。");
+    let req = ChatRequest::from_user(prompt).with_system(
+        "你是中文 RPG 回合引擎。你必须只输出一个 JSON 对象，不要输出 markdown、代码块或解释。",
+    );
     let options = ChatOptions::default()
         .with_temperature(config.temperature as f64)
         .with_max_tokens(configured_max_tokens(
             config,
-            TURN_NARRATION_MAX_TOKENS,
-            TURN_NARRATION_MAX_TOKENS,
+            TURN_JSON_MAX_TOKENS,
+            TURN_JSON_MAX_TOKENS,
         ));
     let chat_res = client
         .exec_chat(&config.model, req, Some(&options))
         .await
         .map_err(|e| {
             eprintln!(
-                "[llm] narration failed model={} baseUrl={} err={:?}",
+                "[llm] turn json failed model={} baseUrl={} err={:?}",
                 config.model, config.base_url, e
             );
-            format!("genai 生成失败: {e}")
+            format!("genai 回合 JSON 生成失败: {e}")
         })?;
     let text = chat_res.first_text().unwrap_or("").trim().to_string();
     if text.is_empty() {
@@ -151,45 +155,59 @@ pub async fn generate_narration(
     Ok(text)
 }
 
-pub async fn stream_narration(
+pub async fn stream_turn_json(
     config: &ModelProviderConfig,
     prompt: &str,
     on_chunk: &mut (dyn FnMut(&str) -> Result<(), String> + Send),
 ) -> Result<String, String> {
     let client = build_client(config)?;
-    let req = ChatRequest::from_user(prompt)
-        .with_system("你是一个中文 RPG 叙事引擎，回复仅输出叙事文本，不要解释。");
+    let req = ChatRequest::from_user(prompt).with_system(
+        "你是中文 RPG 回合引擎。你必须只输出一个 JSON 对象，不要输出 markdown、代码块或解释。",
+    );
     let options = ChatOptions::default()
         .with_temperature(config.temperature as f64)
         .with_max_tokens(configured_max_tokens(
             config,
-            TURN_NARRATION_MAX_TOKENS,
-            TURN_NARRATION_MAX_TOKENS,
+            TURN_JSON_MAX_TOKENS,
+            TURN_JSON_MAX_TOKENS,
         ));
     let mut stream_res = client
         .exec_chat_stream(&config.model, req, Some(&options))
         .await
         .map_err(|e| {
             eprintln!(
-                "[llm] narration stream start failed model={} baseUrl={} err={:?}",
+                "[llm] turn json stream start failed model={} baseUrl={} err={:?}",
                 config.model, config.base_url, e
             );
-            format!("genai 流式启动失败: {e}")
+            format!("genai 回合 JSON 流式启动失败: {e}")
         })?;
 
-    let mut narration = String::new();
+    let mut out = String::new();
+    let mut chunk_count = 0usize;
     while let Some(event) = stream_res.stream.next().await {
-        let event = event.map_err(|e| format!("genai 流式事件错误: {e}"))?;
+        let event = event.map_err(|e| format!("genai 回合 JSON 流式事件错误: {e}"))?;
         if let ChatStreamEvent::Chunk(chunk) = event {
-            narration.push_str(&chunk.content);
+            chunk_count += 1;
+            out.push_str(&chunk.content);
+            eprintln!(
+                "[llm] turn json stream recv chunk#{} size={} total={}",
+                chunk_count,
+                chunk.content.chars().count(),
+                out.chars().count()
+            );
             on_chunk(&chunk.content)?;
         }
     }
-    let narration = narration.trim().to_string();
-    if narration.is_empty() {
+    eprintln!(
+        "[llm] turn json stream completed chunks={} totalChars={}",
+        chunk_count,
+        out.chars().count()
+    );
+    let text = out.trim().to_string();
+    if text.is_empty() {
         return Err("模型流式返回了空内容".to_string());
     }
-    Ok(narration)
+    Ok(text)
 }
 
 pub async fn generate_world_card_json(

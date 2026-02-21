@@ -33,6 +33,10 @@ import type {
   ReplayResult,
   SaveBundle,
   SaveMeta,
+  StoryState,
+  TaskState,
+  RelationshipDelta,
+  TurnStreamPayload,
   TurnResult,
   WorldCard,
 } from "@/types";
@@ -69,6 +73,21 @@ export function useGameApp() {
   const narrationText = ref("欢迎来到 RoleClaw。先创建一个存档开始冒险。");
   const stateChanges = ref<string[]>([]);
   const options = ref<DialogueOption[]>([]);
+  const streamingNarrationText = ref("");
+  const streamingStructuredPreview = ref<{
+    storyState: StoryState | null;
+    taskState: TaskState | null;
+    relationshipDeltas: RelationshipDelta[];
+    options: DialogueOption[];
+    stateChangesPreview: string[];
+  }>({
+    storyState: null,
+    taskState: null,
+    relationshipDeltas: [],
+    options: [],
+    stateChangesPreview: [],
+  });
+  const turnStreamingStatus = ref<"idle" | "running" | "error">("idle");
   const customInput = ref("");
   const cardImportText = ref("");
   const cardExportPath = ref("");
@@ -199,16 +218,76 @@ export function useGameApp() {
       activeSave.value = bundle;
       view.value = "game";
       if (resetScene) {
-        narrationText.value = bundle.snapshot.worldSummary;
-        stateChanges.value = ["存档已加载"];
-        options.value = [
-          { id: "opt_plot_1", kind: "plot", text: "追问关键线索" },
-          { id: "opt_emotion_1", kind: "emotion", text: "尝试建立信任" },
-          { id: "opt_risk_1", kind: "risk", text: "冒险试探未知区域" },
-        ];
+        const lastLog = bundle.recentLogs[bundle.recentLogs.length - 1];
+        if (lastLog?.output) {
+          narrationText.value = lastLog.output.narration || bundle.snapshot.worldSummary;
+          stateChanges.value = lastLog.output.stateChangesPreview ?? ["存档已加载"];
+          options.value = lastLog.output.options ?? [];
+          streamingStructuredPreview.value = {
+            storyState: lastLog.output.storyState ?? null,
+            taskState: lastLog.output.taskState ?? null,
+            relationshipDeltas: lastLog.output.relationshipDeltas ?? [],
+            options: lastLog.output.options ?? [],
+            stateChangesPreview: lastLog.output.stateChangesPreview ?? [],
+          };
+        } else {
+          narrationText.value = bundle.snapshot.worldSummary;
+          stateChanges.value = ["存档已加载"];
+          options.value = [];
+          if (bundle.snapshot.turn === 0) {
+            await generateOpeningScene(bundle.meta.id);
+          }
+        }
       }
+      turnStreamingStatus.value = "idle";
+      streamingNarrationText.value = "";
     } catch (err) {
       setError(err);
+    }
+  }
+
+  async function generateOpeningScene(saveId: string) {
+    try {
+      resetTurnStreaming();
+      narrationText.value = "";
+      stateChanges.value = ["正在生成开场场景..."];
+      turnStreamingStatus.value = "running";
+      const result = await runTurnStream(
+        {
+          saveId,
+          draft: true,
+          customText:
+            "请生成本次冒险的开场场景，描述当前局面，并给出三个互斥可执行选项。",
+        },
+        onTurnStreamEvent,
+      );
+      narrationText.value = result.narration;
+      stateChanges.value = result.stateChangesPreview.length
+        ? result.stateChangesPreview
+        : ["开场场景已生成"];
+      options.value = result.options;
+      streamingStructuredPreview.value = {
+        storyState: result.storyState ?? null,
+        taskState: result.taskState ?? null,
+        relationshipDeltas: result.relationshipDeltas ?? [],
+        options: result.options,
+        stateChangesPreview: result.stateChangesPreview,
+      };
+      turnStreamingStatus.value = "idle";
+    } catch (err) {
+      turnStreamingStatus.value = "error";
+      setError(err);
+      // Compatibility fallback when opening generation fails.
+      if (!narrationText.value.trim()) {
+        narrationText.value = "开场场景生成失败，请重试一次或手动输入第四选项开始。";
+      }
+      if (options.value.length === 0) {
+        options.value = [
+          { id: "opt_1", kind: "approach", text: "观察周围并整理当前局势" },
+          { id: "opt_2", kind: "social", text: "接近附近关键人物并试探交流" },
+          { id: "opt_3", kind: "risk", text: "主动探索可疑区域寻找突破口" },
+        ];
+      }
     }
   }
 
@@ -331,8 +410,136 @@ export function useGameApp() {
     narrationText.value = result.narration;
     stateChanges.value = result.stateChangesPreview;
     options.value = result.options;
+    streamingStructuredPreview.value = {
+      storyState: result.storyState ?? null,
+      taskState: result.taskState ?? null,
+      relationshipDeltas: result.relationshipDeltas ?? [],
+      options: result.options,
+      stateChangesPreview: result.stateChangesPreview,
+    };
+    streamingNarrationText.value = result.narration;
+    turnStreamingStatus.value = "idle";
     if (activeSave.value) {
       await openSave(activeSave.value.meta.id, false);
+    }
+  }
+
+  function resetTurnStreaming() {
+    streamingNarrationText.value = "";
+    streamingStructuredPreview.value = {
+      storyState: null,
+      taskState: null,
+      relationshipDeltas: [],
+      options: [],
+      stateChangesPreview: [],
+    };
+  }
+
+  function applyStreamPreviewFromJsonChunk() {
+    try {
+      const nextRaw = streamingNarrationText.value;
+      const parsed = parsePartialJson(nextRaw, ALL) as Record<string, unknown>;
+      const narration = parsed.narration;
+      if (typeof narration === "string") {
+        narrationText.value = narration;
+      }
+      const optionsRaw = parsed.options;
+      if (Array.isArray(optionsRaw)) {
+        const parsedOptions = optionsRaw
+          .map((item, idx) => {
+            if (!item || typeof item !== "object") return null;
+            const record = item as Record<string, unknown>;
+            const text = typeof record.text === "string" ? record.text : "";
+            if (!text.trim()) return null;
+            return {
+              id: `opt_${idx + 1}`,
+              kind: typeof record.kind === "string" ? record.kind : "approach",
+              text,
+            } as DialogueOption;
+          })
+          .filter((item): item is DialogueOption => Boolean(item));
+        if (parsedOptions.length > 0) {
+          streamingStructuredPreview.value.options = parsedOptions;
+          options.value = parsedOptions;
+        }
+      }
+      if (parsed.storyState && typeof parsed.storyState === "object") {
+        streamingStructuredPreview.value.storyState = parsed.storyState as StoryState;
+      }
+      if (parsed.taskState && typeof parsed.taskState === "object") {
+        streamingStructuredPreview.value.taskState = parsed.taskState as TaskState;
+      }
+      if (Array.isArray(parsed.relationshipDeltas)) {
+        streamingStructuredPreview.value.relationshipDeltas =
+          parsed.relationshipDeltas as RelationshipDelta[];
+      }
+      if (Array.isArray(parsed.stateChangesPreview)) {
+        streamingStructuredPreview.value.stateChangesPreview =
+          parsed.stateChangesPreview.filter((v): v is string => typeof v === "string");
+        stateChanges.value = streamingStructuredPreview.value.stateChangesPreview;
+      }
+    } catch {
+      // Ignore partial parse errors while stream is still incomplete.
+    }
+  }
+
+  function onTurnStreamEvent(payload: TurnStreamPayload) {
+    if (payload.eventType === "status") {
+      if (payload.phase === "start" || payload.phase === "preview" || payload.phase === "delta") {
+        turnStreamingStatus.value = "running";
+      }
+      if (payload.phase === "final" || payload.phase === "end") {
+        turnStreamingStatus.value = "idle";
+      }
+      return;
+    }
+    if (payload.eventType === "error") {
+      turnStreamingStatus.value = "error";
+      const msg = payload.data?.message;
+      if (typeof msg === "string" && msg.trim()) {
+        errorMsg.value = msg;
+      }
+      return;
+    }
+    if (payload.eventType === "narration_delta" && payload.chunk) {
+      narrationText.value += payload.chunk;
+      return;
+    }
+    if (payload.eventType === "json_delta" && payload.chunk) {
+      streamingNarrationText.value += payload.chunk;
+      applyStreamPreviewFromJsonChunk();
+      return;
+    }
+    if (payload.eventType === "options_preview" && payload.data) {
+      const raw = payload.data.options;
+      if (Array.isArray(raw)) {
+        const next = raw.filter((item): item is DialogueOption => {
+          return Boolean(item && typeof item === "object");
+        });
+        if (next.length > 0) {
+          streamingStructuredPreview.value.options = next;
+          options.value = next;
+        }
+      }
+      return;
+    }
+    if (payload.eventType === "state_preview" && payload.data) {
+      const stateData = payload.data;
+      if (stateData.storyState && typeof stateData.storyState === "object") {
+        streamingStructuredPreview.value.storyState = stateData.storyState as StoryState;
+      }
+      if (stateData.taskState && typeof stateData.taskState === "object") {
+        streamingStructuredPreview.value.taskState = stateData.taskState as TaskState;
+      }
+      if (Array.isArray(stateData.relationshipDeltas)) {
+        streamingStructuredPreview.value.relationshipDeltas =
+          stateData.relationshipDeltas as RelationshipDelta[];
+      }
+      if (Array.isArray(stateData.stateChangesPreview)) {
+        streamingStructuredPreview.value.stateChangesPreview =
+          stateData.stateChangesPreview as string[];
+      }
+      stateChanges.value = streamingStructuredPreview.value.stateChangesPreview;
     }
   }
 
@@ -342,15 +549,16 @@ export function useGameApp() {
     }
     errorMsg.value = "";
     try {
+      resetTurnStreaming();
       narrationText.value = "";
+      turnStreamingStatus.value = "running";
       const result = await runTurnStream(
         { saveId: activeSave.value.meta.id, optionId },
-        (chunk) => {
-          narrationText.value += chunk;
-        },
+        onTurnStreamEvent,
       );
       await applyTurnResult(result);
     } catch (err) {
+      turnStreamingStatus.value = "error";
       setError(err);
     }
   }
@@ -361,19 +569,20 @@ export function useGameApp() {
     }
     errorMsg.value = "";
     try {
+      resetTurnStreaming();
       narrationText.value = "";
+      turnStreamingStatus.value = "running";
       const result = await runTurnStream(
         {
           saveId: activeSave.value.meta.id,
           customText: customInput.value.trim(),
         },
-        (chunk) => {
-          narrationText.value += chunk;
-        },
+        onTurnStreamEvent,
       );
       customInput.value = "";
       await applyTurnResult(result);
     } catch (err) {
+      turnStreamingStatus.value = "error";
       setError(err);
     }
   }
@@ -616,6 +825,9 @@ export function useGameApp() {
     modelCheckMsg,
     modelCheckOk,
     narrationText,
+    streamingNarrationText,
+    streamingStructuredPreview,
+    turnStreamingStatus,
     stateChanges,
     options,
     customInput,
