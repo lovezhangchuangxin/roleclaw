@@ -169,29 +169,79 @@
         </div>
       </section>
 
-      <section v-if="view === 'settings'" class="panel max-w-3xl">
-        <h2 class="panel-title">游戏设置</h2>
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="field">
-            <span>主题</span>
-            <select v-model="gameSettings.theme" class="input">
-              <option value="default">默认</option>
-              <option value="fantasy">沉浸幻想</option>
-              <option value="terminal">科幻终端</option>
-              <option value="archive">古典档案</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>消息速度</span>
-            <select v-model="gameSettings.messageSpeed" class="input">
-              <option value="slow">慢</option>
-              <option value="normal">中</option>
-              <option value="fast">快</option>
-            </select>
-          </label>
-        </div>
-        <div class="mt-4 flex gap-2">
-          <button class="btn btn-primary" @click="saveGlobalGameData">保存游戏设置</button>
+      <section v-if="view === 'settings'" class="settings-shell">
+        <div class="panel settings-panel">
+          <div class="settings-head">
+            <h2 class="panel-title mb-0">游戏设置</h2>
+            <p class="text-sm text-muted-foreground">主题切换会即时生效，当前存档与全局设置会自动同步。</p>
+          </div>
+
+          <div class="settings-grid">
+            <label class="field">
+              <span>主题</span>
+              <Select v-model="gameSettings.theme">
+                <SelectTrigger class="w-full settings-select-trigger">
+                  <SelectValue placeholder="选择主题" />
+                </SelectTrigger>
+                <SelectContent class="settings-select-content">
+                  <SelectItem v-for="theme in themeOptions" :key="theme.value" :value="theme.value"
+                    class="settings-select-item">
+                    <div class="settings-select-theme" :data-game-theme="theme.value">
+                      <span class="settings-select-theme-name">{{ theme.label }}</span>
+                      <span class="settings-select-swatch-row">
+                        <span class="settings-select-swatch settings-select-swatch-panel" />
+                        <span class="settings-select-swatch settings-select-swatch-primary" />
+                        <span class="settings-select-swatch settings-select-swatch-accent" />
+                      </span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+
+            <label class="field">
+              <span>消息速度</span>
+              <Select v-model="gameSettings.messageSpeed">
+                <SelectTrigger class="w-full settings-select-trigger">
+                  <SelectValue placeholder="选择速度" />
+                </SelectTrigger>
+                <SelectContent class="settings-select-content">
+                  <SelectItem v-for="speed in speedOptions" :key="speed.value" :value="speed.value"
+                    class="settings-select-item">
+                    {{ speed.label }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+          </div>
+
+          <div class="theme-preview-grid">
+            <button v-for="theme in themeOptions" :key="theme.value" type="button" class="theme-preview-card"
+              :data-game-theme="theme.value"
+              :class="{ 'theme-preview-card-active': gameSettings.theme === theme.value }"
+              @click="gameSettings.theme = theme.value">
+              <div class="theme-preview-surface">
+                <div class="theme-preview-header">
+                  <span class="theme-preview-dot" />
+                  <span class="theme-preview-dot" />
+                  <span class="theme-preview-dot" />
+                </div>
+                <div class="theme-preview-lines">
+                  <span class="theme-preview-line" />
+                  <span class="theme-preview-line theme-preview-line-short" />
+                </div>
+                <div class="theme-preview-cta">Action</div>
+              </div>
+              <div class="theme-preview-meta">
+                <p class="theme-preview-name">{{ theme.label }}</p>
+                <p class="theme-preview-desc">{{ theme.description }}</p>
+              </div>
+            </button>
+          </div>
+
+          <div class="mt-5 flex justify-end">
+            <button class="btn btn-primary" @click="saveGlobalGameData">保存游戏设置</button>
+          </div>
         </div>
       </section>
 
@@ -252,6 +302,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import GameMapCanvas from "@/components/game/GameMapCanvas.vue";
 import GameSettingsMenu from "@/components/game/GameSettingsMenu.vue";
 import WorldCardManager from "@/components/game/WorldCardManager.vue";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGameApp } from "@/composables/useGameApp";
 
 const {
@@ -296,6 +347,17 @@ const {
 
 const showInGameMenu = ref(false);
 const copiedModelCheck = ref(false);
+const themeOptions = [
+  { value: "default", label: "默认", description: "清晰平衡，通用阅读" },
+  { value: "fantasy", label: "沉浸幻想", description: "暖色羊皮卷氛围" },
+  { value: "terminal", label: "科幻终端", description: "高对比霓虹控制台" },
+  { value: "archive", label: "古典档案", description: "旧纸档案式质感" },
+] as const;
+const speedOptions = [
+  { value: "slow", label: "慢" },
+  { value: "normal", label: "中" },
+  { value: "fast", label: "快" },
+] as const;
 
 function handleMenuSelect(action: "start" | "saves" | "ai" | "cards" | "settings" | "exit") {
   if (action === "exit") {
@@ -730,5 +792,179 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-md);
   padding: 0.8rem;
   background: color-mix(in oklab, var(--game-panel-bg) 94%, white 6%);
+}
+
+.settings-shell {
+  min-height: calc(100dvh - 11rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-panel {
+  width: min(980px, 100%);
+  padding: 1.1rem;
+}
+
+.settings-head {
+  margin-bottom: 1rem;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-select-trigger {
+  border-color: var(--game-input-border);
+  background: var(--game-input-bg);
+}
+
+.settings-select-content {
+  border-color: var(--game-panel-border);
+  background: var(--game-panel-bg);
+  color: var(--game-btn-text);
+}
+
+.settings-select-item {
+  color: var(--game-btn-text);
+}
+
+.settings-select-theme {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.settings-select-theme-name {
+  font-size: 0.84rem;
+}
+
+.settings-select-swatch-row {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.settings-select-swatch {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--game-panel-border) 78%, transparent);
+}
+
+.settings-select-swatch-panel {
+  background: var(--game-panel-bg);
+}
+
+.settings-select-swatch-primary {
+  background: var(--game-btn-primary-bg);
+}
+
+.settings-select-swatch-accent {
+  background: var(--game-bg-layer-1);
+}
+
+.theme-preview-grid {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.theme-preview-card {
+  border: 1px solid var(--game-panel-border);
+  border-radius: calc(var(--radius-lg) + 2px);
+  padding: 0.68rem;
+  background: color-mix(in oklab, var(--game-panel-bg) 96%, transparent);
+  text-align: left;
+  transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.theme-preview-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 46%, var(--game-panel-border) 54%);
+  box-shadow: 0 10px 22px color-mix(in oklab, var(--game-overlay-bg) 25%, transparent);
+}
+
+.theme-preview-card-active {
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 62%, var(--game-panel-border) 38%);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--game-btn-primary-bg) 24%, transparent);
+}
+
+.theme-preview-surface {
+  border: 1px solid var(--game-panel-border);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--game-panel-bg) 88%, transparent), color-mix(in oklab, var(--game-bg-layer-1) 35%, transparent));
+  padding: 0.5rem;
+}
+
+.theme-preview-header {
+  display: flex;
+  gap: 0.2rem;
+  margin-bottom: 0.45rem;
+}
+
+.theme-preview-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--game-btn-border);
+}
+
+.theme-preview-lines {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.theme-preview-line {
+  height: 0.23rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--game-btn-text) 70%, transparent);
+  opacity: 0.45;
+}
+
+.theme-preview-line-short {
+  width: 68%;
+}
+
+.theme-preview-cta {
+  margin-top: 0.45rem;
+  border-radius: 999px;
+  background: var(--game-btn-primary-bg);
+  color: var(--game-btn-primary-text);
+  font-size: 0.56rem;
+  width: fit-content;
+  padding: 0.13rem 0.42rem;
+  letter-spacing: 0.02em;
+}
+
+.theme-preview-meta {
+  margin-top: 0.48rem;
+}
+
+.theme-preview-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--game-btn-text);
+}
+
+.theme-preview-desc {
+  margin-top: 0.08rem;
+  font-size: 0.72rem;
+  color: color-mix(in oklab, var(--game-btn-text) 72%, transparent);
+}
+
+@media (max-width: 900px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-preview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>
