@@ -1,0 +1,237 @@
+{
+  "presets": [
+    {
+      "id": "openai-gpt4o",
+      "name": "OpenAI GPT-4o",
+      "providerType": "openai",
+      "provider": "OpenAI",
+      "baseUrl": "https://api.openai.com/v1",
+      "model": "gpt-4o",
+      "description": "OpenAI 最新旗舰模型"
+    },
+    {
+      "id": "anthropic-claude-sonnet",
+      "name": "Claude Sonnet 4",
+      "providerType": "anthropic",
+      "provider": "Anthropic",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "model": "claude-sonnet-4-20250514",
+      "description": "Anthropic 旗舰模型"
+    },
+    {
+      "id": "google-gemini-2-flash",
+      "name": "Google Gemini 2.0 Flash",
+      "providerType": "google",
+      "provider": "Google",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1",
+      "model": "gemini-2.0-flash-exp",
+      "description": "Google 快速响应模型"
+    },
+    {
+      "id": "ollama-llama3.3",
+      "name": "Ollama Llama 3.3 (本地)",
+      "providerType": "ollama",
+      "provider": "Ollama",
+      "baseUrl": "http://localhost:11434",
+      "model": "llama3.3",
+      "description": "本地运行 Llama 3.3",
+      "requiresApiKey": false
+    },
+    {
+      "id": "zhipu-glm4-flash",
+      "name": "智谱 GLM-4-Flash",
+      "providerType": "zhipu",
+      "provider": "智谱AI",
+      "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+      "model": "glm-4-flash",
+      "description": "智谱AI 旗舰模型"
+    },
+    {
+      "id": "zhipu-glm4-plus",
+      "name": "智谱 GLM-4-Plus",
+      "providerType": "zhipu",
+      "provider": "智谱AI",
+      "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+      "model": "glm-4-plus",
+      "description": "智谱AI 增强版"
+    },
+    {
+      "id": "zhipu-glm4-pro",
+      "name": "智谱 GLM-4-Pro",
+      "providerType": "zhipu",
+      "provider": "智谱AI",
+      "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+      "model": "glm-4-pro",
+      "description": "智谱AI 最强模型"
+    },
+    {
+      "id": "alibaba-qwen-turbo",
+      "name": "阿里 Qwen-Turbo",
+      "providerType": "alibaba",
+      "provider": "阿里云",
+      "baseUrl": "https://dashscope.aliyuncs.com/api/v1",
+      "model": "qwen-turbo",
+      "description": "阿里 快速响应模型"
+    },
+    {
+      "id": "alibaba-qwen-plus",
+      "name": "阿里 Qwen-Plus",
+      "providerType": "alibaba",
+      "provider": "阿里云",
+      "baseUrl": "https://dashscope.aliyuncs.com/api/v1",
+      "model": "qwen-plus",
+      "description": "阿里 中等性能模型"
+    },
+    {
+      "id": "alibaba-qwen-max",
+      "name": "阿里 Qwen-Max",
+      "providerType": "alibaba",
+      "provider": "阿里云",
+      "baseUrl": "https://dashscope.aliyuncs.com/api/v1",
+      "model": "qwen-max",
+      "description": "阿里 最强模型"
+    },
+    {
+      "id": "kimi-k2.5",
+      "name": "Kimi k2.5",
+      "providerType": "kimi",
+      "provider": "月之暗面",
+      "baseUrl": "https://api.moonshot.cn/v1",
+      "model": "kimi-k2.5",
+      "description": "Kimi 推理模型"
+    },
+    {
+      "id": "kimi-k2",
+      "name": "Kimi k2",
+      "providerType": "kimi",
+      "provider": "月之暗面",
+      "baseUrl": "https://api.moonshot.cn/v1",
+      "model": "kimi-k2",
+      "description": "Kimi 基础模型"
+    },
+    {
+      "id": "deepseek-chat",
+      "name": "DeepSeek Chat",
+      "providerType": "deepseek",
+      "provider": "深度求索",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "model": "deepseek-chat",
+      "description": "DeepSeek 对话模型"
+    },
+    {
+      "id": "deepseek-reasoner",
+      "name": "DeepSeek Reasoner",
+      "providerType": "deepseek",
+      "provider": "深度求索",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "model": "deepseek-reasoner",
+      "description": "DeepSeek 推理模型"
+    },
+    {
+      "id": "baidu-ernie4",
+      "name": "百度 ERNIE 4.0",
+      "providerType": "baidu",
+      "provider": "百度",
+      "baseUrl": "https://qianfan.eyun.com/v2",
+      "model": "ernie-4.0-8k",
+      "description": "百度最强模型"
+    },
+    {
+      "id": "baidu-ernie35",
+      "name": "百度 ERNIE 3.5",
+      "providerType": "baidu",
+      "provider": "百度",
+      "baseUrl": "https://qianfan.eyun.com/v2",
+      "model": "ernie-3.5-8k",
+      "description": "百度主流模型"
+    },
+    {
+      "id": "tencent-hunyuan-pro",
+      "name": "腾讯混元 Pro",
+      "providerType": "tencent",
+      "provider": "腾讯",
+      "baseUrl": "https://hunyuan.tencentcloudapi.com/v2",
+      "model": "hunyuan-pro",
+      "description": "腾讯混元旗舰模型"
+    },
+    {
+      "id": "tencent-hunyuan-standard",
+      "name": "腾讯混元 Standard",
+      "providerType": "tencent",
+      "provider": "腾讯",
+      "baseUrl": "https://hunyuan.tencentcloudapi.com/v2",
+      "model": "hunyuan-standard",
+      "description": "腾讯混元标准模型"
+    },
+    {
+      "id": "bytedance-doubao-pro",
+      "name": "字节豆包 Pro",
+      "providerType": "bytedance",
+      "provider": "字节跳动",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "model": "doubao-pro-32k",
+      "description": "字节豆包旗舰模型"
+    },
+    {
+      "id": "minimax-m2.5",
+      "name": "MiniMax M2.5",
+      "providerType": "minimax",
+      "provider": "MiniMax",
+      "baseUrl": "https://api.minimax.chat/v1",
+      "model": "MiniMax-M2.5",
+      "description": "MiniMax 旗舰模型"
+    },
+    {
+      "id": "minimax-m2.1",
+      "name": "MiniMax M2.1",
+      "providerType": "minimax",
+      "provider": "MiniMax",
+      "baseUrl": "https://api.minimax.chat/v1",
+      "model": "MiniMax-M2.1",
+      "description": "MiniMax 主流模型"
+    },
+    {
+      "id": "stepfun-step-1v",
+      "name": "阶跃 Step-1V",
+      "providerType": "stepfun",
+      "provider": "阶跃星辰",
+      "baseUrl": "https://api.stepfun.com/v1",
+      "model": "step-1v-8k",
+      "description": "阶跃星辰多模态模型"
+    }
+  ],
+  "customProviders": [
+    {
+      "id": "custom-openai-compatible",
+      "name": "自定义 OpenAI 兼容 API",
+      "providerType": "custom",
+      "description": "适用于第三方 OpenAI 兼容 API",
+      "fields": [
+        {"name": "baseUrl", "label": "API 地址", "type": "text", "placeholder": "https://your-api.com/v1", "required": true},
+        {"name": "model", "label": "模型名称", "type": "text", "placeholder": "gpt-4o", "required": true},
+        {"name": "apiKey", "label": "API Key", "type": "password", "required": true}
+      ]
+    },
+    {
+      "id": "custom-azure",
+      "name": "Azure OpenAI",
+      "providerType": "azure",
+      "description": "微软 Azure OpenAI 服务",
+      "fields": [
+        {"name": "baseUrl", "label": "端点地址", "type": "text", "placeholder": "https://xxx.openai.azure.com", "required": true},
+        {"name": "model", "label": "部署名称", "type": "text", "placeholder": "gpt-4o", "required": true},
+        {"name": "apiKey", "label": "API Key", "type": "password", "required": true}
+      ]
+    },
+    {
+      "id": "custom-ollama",
+      "name": "本地 Ollama",
+      "providerType": "ollama",
+      "description": "本地部署的 Ollama 服务",
+      "fields": [
+        {"name": "baseUrl", "label": "服务地址", "type": "text", "default": "http://localhost:11434", "required": true},
+        {"name": "model", "label": "模型名称", "type": "text", "placeholder": "llama3.3", "required": true}
+      ]
+    }
+  ]
+}
