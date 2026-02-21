@@ -632,7 +632,7 @@ export function useGameApp() {
   }
 
   async function submitOption(optionId: string) {
-    if (!activeSave.value) {
+    if (!activeSave.value || turnStreamingStatus.value === "running") {
       return;
     }
     errorMsg.value = "";
@@ -653,7 +653,11 @@ export function useGameApp() {
   }
 
   async function submitCustom() {
-    if (!activeSave.value || !customInput.value.trim()) {
+    if (
+      !activeSave.value ||
+      turnStreamingStatus.value === "running" ||
+      !customInput.value.trim()
+    ) {
       return;
     }
     errorMsg.value = "";

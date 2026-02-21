@@ -1,5 +1,5 @@
 <template>
-  <section v-if="activeSave" class="panel max-w-6xl">
+  <section v-if="activeSave" class="panel w-full">
     <div class="mb-3 flex items-center justify-between">
       <div>
         <h2 class="panel-title mb-1">回放与分叉</h2>
@@ -49,7 +49,7 @@
       </div>
     </div>
   </section>
-  <section v-else class="panel max-w-2xl">
+  <section v-else class="panel w-full">
     <h2 class="panel-title">回放与分叉</h2>
     <p class="text-sm game-text-muted">请先加载存档，再进入回放页。</p>
   </section>

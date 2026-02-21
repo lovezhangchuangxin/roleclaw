@@ -156,10 +156,19 @@
   font-size: 0.875rem;
   background: var(--game-btn-bg);
   color: var(--game-btn-text);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 
-.btn:hover {
+.btn:not(:disabled):hover {
   background: var(--game-btn-hover-bg);
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 32%, var(--game-btn-border) 68%);
+  box-shadow: 0 6px 14px color-mix(in oklab, var(--game-btn-primary-bg) 18%, transparent);
+  transform: translateY(-1px);
 }
 
 .replay-item-active {
@@ -170,6 +179,8 @@
 .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .btn-primary {
@@ -177,8 +188,22 @@
   color: var(--game-btn-primary-text);
 }
 
-.btn-primary:hover {
+.btn-primary:not(:disabled):hover {
   background: var(--game-btn-primary-hover-bg);
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 72%, var(--game-btn-border) 28%);
+  box-shadow: 0 8px 18px color-mix(in oklab, var(--game-btn-primary-bg) 30%, transparent);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--game-panel-bg) 82%, transparent),
+    0 0 0 4px color-mix(in oklab, var(--game-btn-primary-bg) 54%, transparent);
+}
+
+.btn:not(:disabled):active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--game-btn-primary-bg) 14%, transparent);
 }
 
 .game-play-shell {

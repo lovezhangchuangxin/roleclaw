@@ -75,14 +75,20 @@
         </section>
 
         <div class="space-y-2 game-story-options">
-          <button v-for="opt in options" :key="opt.id" class="btn w-full text-left" @click="submitOption(opt.id)">
+          <button
+            v-for="opt in options"
+            :key="opt.id"
+            class="btn w-full text-left"
+            :disabled="isTurnResponsePending"
+            @click="submitOption(opt.id)"
+          >
             [{{ opt.kind }}] {{ opt.text }}
           </button>
         </div>
 
         <div class="game-custom-row flex gap-2">
           <input v-model="customInput" class="input flex-1" placeholder="输入你的自定义第四选项..." />
-          <button class="btn btn-primary" @click="submitCustom">提交</button>
+          <button class="btn btn-primary" :disabled="isTurnResponsePending" @click="submitCustom">提交</button>
         </div>
       </div>
     </div>
@@ -118,13 +124,15 @@
           </ul>
         </section>
 
-        <section v-if="replayPreview.length > 0" class="game-state-block">
-          <h3 class="font-medium">回放预览</h3>
-          <ul class="mt-2 space-y-1 text-xs">
-            <li v-for="item in replayPreview" :key="item.turn" class="rounded border px-2 py-1">
-              T{{ item.turn }} · {{ item.output?.stateChangesPreview?.join(" / ") || "无摘要" }}
-            </li>
-          </ul>
+        <section v-if="recentScene" class="game-state-block">
+          <h3 class="font-medium">最近场景（T{{ recentScene.turn }}）</h3>
+          <div class="mt-2 rounded border px-3 py-2 text-xs space-y-2">
+            <p class="leading-6">{{ recentSceneNarration }}</p>
+            <p>
+              你的选择：
+              <span class="font-medium">{{ recentSceneChoice }}</span>
+            </p>
+          </div>
         </section>
 
         <section v-if="gameSettings.logLevel === 'debug'" class="game-state-block">
@@ -151,6 +159,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import GameMapCanvas from "@/components/game/GameMapCanvas.vue";
 import GameSettingsMenu from "@/components/game/GameSettingsMenu.vue";
 import { useGameAppContext } from "@/composables/useGameAppContext";
+import type { TurnInput } from "@/types";
 
 const {
   activeSave,
@@ -186,6 +195,36 @@ const relationshipEntries = computed(() => {
     value: typeof value === "number" ? value.toFixed(1) : String(value),
   }));
 });
+
+const recentScene = computed(() => replayPreview.value[replayPreview.value.length - 1] ?? null);
+
+const recentSceneNarration = computed(() => {
+  const narration = recentScene.value?.output?.narration?.trim();
+  if (!narration) {
+    return "暂无场景文本";
+  }
+  return narration;
+});
+
+const recentSceneChoice = computed(() => formatChoiceLabel(recentScene.value?.input));
+const isTurnResponsePending = computed(() => turnStreamingStatus.value === "running");
+
+function formatChoiceLabel(input?: TurnInput | null): string {
+  if (!input) {
+    return "暂无选择记录";
+  }
+  if (input.customText?.trim()) {
+    return `自定义：${input.customText.trim()}`;
+  }
+  if (input.optionId?.trim()) {
+    const matched = input.optionId.match(/\d+/);
+    if (matched) {
+      return `系统选项 ${matched[0]}`;
+    }
+    return `系统选项（${input.optionId}）`;
+  }
+  return "暂无选择记录";
+}
 
 watch(
   () => activeSave.value?.meta.id,
