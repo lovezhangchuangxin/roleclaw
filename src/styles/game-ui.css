@@ -181,12 +181,92 @@
   background: var(--game-btn-primary-hover-bg);
 }
 
-.game-shell {
+.game-play-shell {
   min-height: calc(100dvh - 11rem);
   display: grid;
   gap: 1rem;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.8fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "head head head"
+    "map story state";
+  align-content: start;
   align-items: stretch;
+}
+
+.game-play-head {
+  grid-area: head;
+  padding: 0.42rem 0.62rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.game-play-head-main {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 0.3rem 0.5rem;
+  overflow: hidden;
+}
+
+.game-play-kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--game-text-muted);
+  white-space: nowrap;
+}
+
+.game-play-title {
+  margin-top: 0;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.game-play-meta {
+  font-size: 0.78rem;
+  color: var(--game-text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game-play-head-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+.game-play-head-actions .btn {
+  padding: 0.28rem 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.game-mobile-tabs {
+  display: none;
+}
+
+.game-mobile-tab {
+  border: 1px solid var(--game-btn-border);
+  border-radius: var(--radius-md);
+  padding: 0.42rem 0.56rem;
+  background: var(--game-btn-bg);
+  color: var(--game-btn-text);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.game-mobile-tab-active {
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 50%, var(--game-btn-border) 50%);
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 12%, var(--game-btn-bg) 88%);
 }
 
 .game-panel {
@@ -195,20 +275,65 @@
   flex-direction: column;
 }
 
+.game-panel-map {
+  grid-area: map;
+}
+
+.game-panel-story {
+  grid-area: story;
+}
+
+.game-panel-state {
+  grid-area: state;
+}
+
 .game-panel-content {
   min-height: 0;
 }
 
 .game-story-content {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0.75rem;
   height: 100%;
 }
 
-.game-state-content {
+.game-story-narration {
+  border: 1px solid var(--game-panel-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--game-panel-bg) 94%, var(--game-mix-light) 6%);
+  padding: 0.62rem 0.68rem;
+  min-height: 100px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.game-story-options {
+  min-height: 0;
   overflow: auto;
   padding-right: 0.2rem;
+}
+
+.game-custom-row {
+  margin-top: auto;
+}
+
+.game-state-content {
+  display: grid;
+  gap: 0.65rem;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.game-state-block {
+  border: 1px solid var(--game-panel-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--game-panel-bg) 95%, var(--game-mix-light) 5%);
+  padding: 0.58rem 0.62rem;
+}
+
+.game-state-block pre {
+  font-size: 0.73rem;
 }
 
 .error-banner {
@@ -791,13 +916,62 @@
 }
 
 @media (max-width: 900px) {
-  .game-shell {
+  .game-play-shell {
     min-height: auto;
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "head"
+      "tabs"
+      "panel";
+  }
+
+  .game-play-head {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+
+  .game-play-head-main {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .game-play-meta {
+    white-space: normal;
+  }
+
+  .game-play-head-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .game-play-head-actions .btn {
+    flex: none;
+  }
+
+  .game-mobile-tabs {
+    grid-area: tabs;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.48rem;
+  }
+
+  .game-panel {
+    grid-area: panel;
+  }
+
+  .game-panel-mobile-hidden {
+    display: none;
   }
 
   .game-state-content {
     overflow: visible;
+    padding-right: 0;
+  }
+
+  .game-story-narration,
+  .game-story-options {
+    overflow: visible;
+    max-height: none;
     padding-right: 0;
   }
 

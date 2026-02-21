@@ -1,6 +1,21 @@
 <template>
-  <section v-if="activeSave" class="game-shell">
-    <div class="game-mobile-tabs">
+  <section v-if="activeSave" class="game-play-shell">
+    <header class="panel game-play-head">
+      <div class="game-play-head-main">
+        <p class="game-play-kicker">当前冒险</p>
+        <h2 class="game-play-title">{{ activeSave.meta.name }}</h2>
+        <p class="game-play-meta">
+          回合 {{ activeSave.snapshot.turn }} · 角色 {{ activeSave.snapshot.playerRole }} · 模型
+          {{ activeSave.snapshot.modelLabel || activeSave.meta.model }}
+        </p>
+      </div>
+      <div class="game-play-head-actions">
+        <button class="btn" @click="openReplayView">打开回放页</button>
+        <button class="btn btn-primary" @click="forkActiveSave">从当前回合分叉</button>
+      </div>
+    </header>
+
+    <div class="game-mobile-tabs" role="tablist" aria-label="游戏面板切换">
       <button class="game-mobile-tab" :class="{ 'game-mobile-tab-active': gameMobileTab === 'map' }"
         @click="gameMobileTab = 'map'">
         地图
@@ -25,15 +40,15 @@
     <div class="panel game-panel game-panel-story" :class="{ 'game-panel-mobile-hidden': gameMobileTab !== 'story' }">
       <h2 class="panel-title">叙事与对话</h2>
       <div class="game-panel-content game-story-content">
-        <p class="text-sm leading-6">{{ narrationText }}</p>
+        <p class="text-sm leading-6 game-story-narration">{{ narrationText }}</p>
 
-        <div class="space-y-2">
+        <div class="space-y-2 game-story-options">
           <button v-for="opt in options" :key="opt.id" class="btn w-full text-left" @click="submitOption(opt.id)">
             [{{ opt.kind }}] {{ opt.text }}
           </button>
         </div>
 
-        <div class="game-custom-row mt-auto flex gap-2">
+        <div class="game-custom-row flex gap-2">
           <input v-model="customInput" class="input flex-1" placeholder="输入你的自定义第四选项..." />
           <button class="btn btn-primary" @click="submitCustom">提交</button>
         </div>
@@ -43,46 +58,47 @@
     <div class="panel game-panel game-panel-state" :class="{ 'game-panel-mobile-hidden': gameMobileTab !== 'state' }">
       <h2 class="panel-title">状态</h2>
       <div class="game-panel-content game-state-content">
-        <p class="text-sm">存档：{{ activeSave.meta.name }}</p>
-        <p class="text-sm">回合：{{ activeSave.snapshot.turn }}</p>
-        <p class="text-sm">角色：{{ activeSave.snapshot.playerRole }}</p>
-        <p class="text-sm">模型：{{ activeSave.snapshot.modelLabel || activeSave.meta.model }}</p>
+        <section class="game-state-block">
+          <h3 class="font-medium">最近变化</h3>
+          <ul class="mt-2 list-disc pl-5 text-sm">
+            <li v-for="line in stateChanges" :key="line">{{ line }}</li>
+            <li v-if="stateChanges.length === 0" class="game-text-muted">暂无变化</li>
+          </ul>
+        </section>
 
-        <h3 class="mt-4 font-medium">最近变化</h3>
-        <ul class="mt-2 list-disc pl-5 text-sm">
-          <li v-for="line in stateChanges" :key="line">{{ line }}</li>
-        </ul>
+        <section class="game-state-block">
+          <h3 class="font-medium">任务进度</h3>
+          <ul class="mt-2 space-y-1 text-xs">
+            <li v-for="quest in activeSave.snapshot.quests" :key="quest.id" class="rounded border px-2 py-1">
+              {{ quest.title }} · 阶段 {{ quest.stage }} · {{ quest.completed ? "已完成" : "进行中" }}
+            </li>
+            <li v-if="activeSave.snapshot.quests.length === 0" class="game-text-muted">暂无任务</li>
+          </ul>
+        </section>
 
-        <h3 class="mt-4 font-medium">任务进度</h3>
-        <ul class="mt-2 space-y-1 text-xs">
-          <li v-for="quest in activeSave.snapshot.quests" :key="quest.id" class="rounded border px-2 py-1">
-            {{ quest.title }} · 阶段 {{ quest.stage }} · {{ quest.completed ? "已完成" : "进行中" }}
-          </li>
-          <li v-if="activeSave.snapshot.quests.length === 0" class="game-text-muted">暂无任务</li>
-        </ul>
+        <section class="game-state-block">
+          <h3 class="font-medium">关系矩阵</h3>
+          <ul class="mt-2 space-y-1 text-xs">
+            <li v-for="entry in relationshipEntries" :key="entry.id" class="rounded border px-2 py-1">
+              {{ entry.id }}: {{ entry.value }}
+            </li>
+            <li v-if="relationshipEntries.length === 0" class="game-text-muted">暂无关系记录</li>
+          </ul>
+        </section>
 
-        <h3 class="mt-4 font-medium">关系矩阵</h3>
-        <ul class="mt-2 space-y-1 text-xs">
-          <li v-for="entry in relationshipEntries" :key="entry.id" class="rounded border px-2 py-1">
-            {{ entry.id }}: {{ entry.value }}
-          </li>
-          <li v-if="relationshipEntries.length === 0" class="game-text-muted">暂无关系记录</li>
-        </ul>
+        <section v-if="replayPreview.length > 0" class="game-state-block">
+          <h3 class="font-medium">回放预览</h3>
+          <ul class="mt-2 space-y-1 text-xs">
+            <li v-for="item in replayPreview" :key="item.turn" class="rounded border px-2 py-1">
+              T{{ item.turn }} · {{ item.output?.stateChangesPreview?.join(" / ") || "无摘要" }}
+            </li>
+          </ul>
+        </section>
 
-        <div class="mt-4 flex flex-wrap gap-2">
-          <button class="btn" @click="openReplayView">打开回放页</button>
-          <button class="btn btn-primary" @click="forkActiveSave">从当前回合分叉</button>
-        </div>
-        <ul v-if="replayPreview.length > 0" class="mt-3 space-y-1 text-xs">
-          <li v-for="item in replayPreview" :key="item.turn" class="rounded border px-2 py-1">
-            T{{ item.turn }} · {{ item.output?.stateChangesPreview?.join(" / ") || "无摘要" }}
-          </li>
-        </ul>
-
-        <div v-if="gameSettings.logLevel === 'debug'" class="mt-3 rounded border p-2 text-xs">
+        <section v-if="gameSettings.logLevel === 'debug'" class="game-state-block">
           <p class="font-medium mb-1">调试状态</p>
           <pre class="overflow-auto">{{ JSON.stringify(activeSave.snapshot.worldVariables, null, 2) }}</pre>
-        </div>
+        </section>
       </div>
     </div>
 
