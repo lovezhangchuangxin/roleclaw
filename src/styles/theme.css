@@ -1,5 +1,6 @@
 :root,
 [data-game-theme="default"] {
+  --game-page-bg: rgb(236 245 252);
   --game-bg-layer-1: rgb(14 116 144 / 14%);
   --game-bg-layer-2: rgb(245 158 11 / 12%);
   --game-overlay-bg: rgb(2 6 23 / 55%);
@@ -24,6 +25,9 @@
   --game-menu-card-border: rgb(15 23 42 / 18%);
   --game-menu-kicker: rgb(71 85 105);
   --game-menu-shadow: rgb(15 23 42 / 22%);
+  --game-text-muted: rgb(71 85 105);
+  --game-mix-light: rgb(255 255 255);
+  --game-mask-dark: rgb(2 6 23);
 
   --game-error-bg: rgb(254 242 242 / 94%);
   --game-error-border: rgb(239 68 68 / 45%);
@@ -38,6 +42,7 @@
 }
 
 [data-game-theme="fantasy"] {
+  --game-page-bg: rgb(245 233 208);
   --game-bg-layer-1: rgb(120 53 15 / 16%);
   --game-bg-layer-2: rgb(245 158 11 / 12%);
   --game-overlay-bg: rgb(36 20 7 / 60%);
@@ -62,6 +67,9 @@
   --game-menu-card-border: rgb(120 53 15 / 26%);
   --game-menu-kicker: rgb(124 45 18);
   --game-menu-shadow: rgb(120 53 15 / 26%);
+  --game-text-muted: rgb(124 45 18);
+  --game-mix-light: rgb(255 251 241);
+  --game-mask-dark: rgb(36 20 7);
 
   --game-error-bg: rgb(254 242 242 / 94%);
   --game-error-border: rgb(220 38 38 / 45%);
@@ -76,6 +84,7 @@
 }
 
 [data-game-theme="terminal"] {
+  --game-page-bg: rgb(1 8 20);
   --game-bg-layer-1: rgb(6 182 212 / 16%);
   --game-bg-layer-2: rgb(34 197 94 / 12%);
   --game-overlay-bg: rgb(2 6 23 / 72%);
@@ -100,6 +109,9 @@
   --game-menu-card-border: rgb(34 211 238 / 36%);
   --game-menu-kicker: rgb(125 211 252);
   --game-menu-shadow: rgb(6 182 212 / 24%);
+  --game-text-muted: rgb(103 232 249);
+  --game-mix-light: rgb(186 230 253);
+  --game-mask-dark: rgb(2 6 23);
 
   --game-error-bg: rgb(69 10 10 / 66%);
   --game-error-border: rgb(248 113 113 / 52%);
@@ -114,6 +126,7 @@
 }
 
 [data-game-theme="archive"] {
+  --game-page-bg: rgb(238 233 223);
   --game-bg-layer-1: rgb(113 63 18 / 12%);
   --game-bg-layer-2: rgb(120 113 108 / 10%);
   --game-overlay-bg: rgb(28 25 23 / 58%);
@@ -138,6 +151,9 @@
   --game-menu-card-border: rgb(87 83 78 / 24%);
   --game-menu-kicker: rgb(120 113 108);
   --game-menu-shadow: rgb(68 64 60 / 20%);
+  --game-text-muted: rgb(120 113 108);
+  --game-mix-light: rgb(255 252 245);
+  --game-mask-dark: rgb(41 37 36);
 
   --game-error-bg: rgb(254 242 242 / 94%);
   --game-error-border: rgb(220 38 38 / 45%);

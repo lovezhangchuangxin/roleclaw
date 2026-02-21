@@ -14,7 +14,7 @@
       <header class="mb-6 flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-semibold">RoleClaw AI RPG</h1>
-          <p class="text-sm text-muted-foreground">叙事驱动 · 世界卡生成 · 3+1 对话</p>
+          <p class="text-sm game-text-muted">叙事驱动 · 世界卡生成 · 3+1 对话</p>
         </div>
         <div class="flex gap-2">
           <button class="btn" @click="setView('menu')">主菜单</button>
@@ -28,7 +28,7 @@
 
       <section v-if="view === 'new'" class="panel max-w-3xl">
         <h2 class="panel-title">开始游戏</h2>
-        <p v-if="!defaultModelId" class="mb-3 text-sm text-muted-foreground">
+        <p v-if="!defaultModelId" class="mb-3 text-sm game-text-muted">
           尚未设置默认 AI 模型。请先前往“AI设置”新增模型并设为默认。
         </p>
         <div class="grid gap-4 md:grid-cols-2">
@@ -70,7 +70,7 @@
             <div class="flex items-center justify-between gap-2">
               <div>
                 <p class="font-medium">{{ save.name }}</p>
-                <p class="text-xs text-muted-foreground">
+                <p class="text-xs game-text-muted">
                   回合 {{ save.currentTurn }} · {{ save.provider }} / {{ save.model }}
                 </p>
               </div>
@@ -80,19 +80,19 @@
               </div>
             </div>
           </div>
-          <p v-if="saves.length === 0" class="text-sm text-muted-foreground">暂无存档。</p>
+          <p v-if="saves.length === 0" class="text-sm game-text-muted">暂无存档。</p>
         </div>
       </section>
 
       <section v-if="view === 'ai-settings'" class="panel w-full ai-settings-panel">
         <h2 class="panel-title">AI设置</h2>
-        <p class="text-sm text-muted-foreground">当前协议类型仅支持 OpenAI Compatible。</p>
+        <p class="text-sm game-text-muted">当前协议类型仅支持 OpenAI Compatible。</p>
 
         <div class="ai-layout mt-4">
           <div class="ai-block">
             <div class="ai-block-head">
               <h3 class="ai-block-title">{{ editingModelId ? "编辑模型" : "新建模型" }}</h3>
-              <p class="text-xs text-muted-foreground">左侧维护模型连接信息，保存后立即生效。</p>
+              <p class="text-xs game-text-muted">左侧维护模型连接信息，保存后立即生效。</p>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
               <label class="field">
@@ -143,15 +143,15 @@
           <div class="ai-block">
             <div class="ai-block-head">
               <h3 class="ai-block-title">已配置模型</h3>
-              <p class="text-xs text-muted-foreground">共 {{ aiModels.length }} 个 · 默认 {{ defaultModelId || "未设置" }}</p>
+              <p class="text-xs game-text-muted">共 {{ aiModels.length }} 个 · 默认 {{ defaultModelId || "未设置" }}</p>
             </div>
             <div class="ai-list">
               <div v-for="model in aiModels" :key="model.id" class="ai-list-item"
                 :class="{ 'ai-list-item-active': editingModelId === model.id }" @click="selectAiModel(model.id)">
                 <div class="ai-list-main">
                   <p class="font-medium">{{ model.provider }}/{{ model.model }}</p>
-                  <p class="text-xs text-muted-foreground">{{ model.providerType }}</p>
-                  <p class="text-xs text-muted-foreground truncate">{{ model.baseUrl }}</p>
+                  <p class="text-xs game-text-muted">{{ model.providerType }}</p>
+                  <p class="text-xs game-text-muted truncate">{{ model.baseUrl }}</p>
                 </div>
                 <div class="ai-list-actions">
                   <span v-if="defaultModelId === model.id" class="ai-default-badge">默认</span>
@@ -161,8 +161,8 @@
                 </div>
               </div>
               <div v-if="aiModels.length === 0" class="ai-empty">
-                <p class="text-sm text-muted-foreground">当前还没有配置任何 AI 模型。</p>
-                <p class="text-xs text-muted-foreground">请在左侧填写参数并点击“保存模型”。</p>
+                <p class="text-sm game-text-muted">当前还没有配置任何 AI 模型。</p>
+                <p class="text-xs game-text-muted">请在左侧填写参数并点击“保存模型”。</p>
               </div>
             </div>
           </div>
@@ -173,7 +173,7 @@
         <div class="panel settings-panel">
           <div class="settings-head">
             <h2 class="panel-title mb-0">游戏设置</h2>
-            <p class="text-sm text-muted-foreground">主题切换会即时生效，当前存档与全局设置会自动同步。</p>
+            <p class="text-sm game-text-muted">主题切换会即时生效，当前存档与全局设置会自动同步。</p>
           </div>
 
           <div class="settings-grid">
@@ -457,6 +457,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .app-root {
+  background-color: var(--game-page-bg);
+  color: var(--game-btn-text);
   background:
     radial-gradient(circle at 10% 0%, var(--game-bg-layer-1), transparent 28%),
     radial-gradient(circle at 90% 90%, var(--game-bg-layer-2), transparent 30%);
@@ -481,7 +483,7 @@ onBeforeUnmount(() => {
     linear-gradient(to right, var(--game-panel-border) 1px, transparent 1px),
     linear-gradient(to bottom, var(--game-panel-border) 1px, transparent 1px);
   background-size: 28px 28px;
-  mask-image: radial-gradient(circle at 50% 40%, black 30%, transparent 90%);
+  mask-image: radial-gradient(circle at 50% 40%, var(--game-mask-dark) 30%, transparent 90%);
 }
 
 .start-stack {
@@ -654,7 +656,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--game-panel-border);
   border-radius: var(--radius-lg);
   padding: 1rem;
-  background: color-mix(in oklab, var(--game-panel-bg) 92%, white 8%);
+  background: color-mix(in oklab, var(--game-panel-bg) 92%, var(--game-mix-light) 8%);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -733,7 +735,7 @@ onBeforeUnmount(() => {
 
 .ai-list-item:hover {
   border-color: color-mix(in oklab, var(--game-btn-primary-bg) 26%, var(--game-panel-border) 74%);
-  background: color-mix(in oklab, var(--game-panel-bg) 90%, white 10%);
+  background: color-mix(in oklab, var(--game-panel-bg) 90%, var(--game-mix-light) 10%);
 }
 
 .ai-list-item-active {
@@ -791,7 +793,7 @@ onBeforeUnmount(() => {
   border: 1px dashed var(--game-panel-border);
   border-radius: var(--radius-md);
   padding: 0.8rem;
-  background: color-mix(in oklab, var(--game-panel-bg) 94%, white 6%);
+  background: color-mix(in oklab, var(--game-panel-bg) 94%, var(--game-mix-light) 6%);
 }
 
 .settings-shell {
@@ -804,6 +806,7 @@ onBeforeUnmount(() => {
 .settings-panel {
   width: min(980px, 100%);
   padding: 1.1rem;
+  color: var(--game-btn-text);
 }
 
 .settings-head {
@@ -819,6 +822,15 @@ onBeforeUnmount(() => {
 .settings-select-trigger {
   border-color: var(--game-input-border);
   background: var(--game-input-bg);
+  color: var(--game-btn-text);
+}
+
+.settings-select-trigger[data-placeholder] {
+  color: var(--game-text-muted);
+}
+
+.settings-select-trigger :deep(svg) {
+  color: color-mix(in oklab, var(--game-btn-text) 62%, transparent);
 }
 
 .settings-select-content {
@@ -828,6 +840,16 @@ onBeforeUnmount(() => {
 }
 
 .settings-select-item {
+  color: var(--game-btn-text);
+}
+
+.settings-select-item[data-highlighted] {
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 12%, var(--game-panel-bg) 88%);
+  color: var(--game-btn-text);
+}
+
+.settings-select-item[data-state="checked"] {
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 18%, var(--game-panel-bg) 82%);
   color: var(--game-btn-text);
 }
 
@@ -956,6 +978,10 @@ onBeforeUnmount(() => {
   margin-top: 0.08rem;
   font-size: 0.72rem;
   color: color-mix(in oklab, var(--game-btn-text) 72%, transparent);
+}
+
+.game-text-muted {
+  color: var(--game-text-muted);
 }
 
 @media (max-width: 900px) {

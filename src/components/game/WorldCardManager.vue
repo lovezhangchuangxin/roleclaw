@@ -1,7 +1,7 @@
 <template>
   <div class="panel max-w-5xl">
     <h2 class="panel-title">世界卡管理</h2>
-    <p class="mb-4 text-sm text-muted-foreground">支持列表查看、JSON 导入、指定路径导出。</p>
+    <p class="mb-4 text-sm game-text-muted">支持列表查看、JSON 导入、指定路径导出。</p>
 
     <div class="mb-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
       <div>
@@ -23,7 +23,7 @@
           placeholder="/tmp/world-card.json"
           @input="$emit('update:cardExportPath', ($event.target as HTMLInputElement).value)"
         />
-        <p class="mt-2 text-xs text-muted-foreground">点击列表中的“导出”会输出到该路径。</p>
+        <p class="mt-2 text-xs game-text-muted">点击列表中的“导出”会输出到该路径。</p>
       </div>
     </div>
 
@@ -33,14 +33,14 @@
         <div class="flex items-center justify-between gap-3">
           <div>
             <p class="font-medium">{{ card.name }}</p>
-            <p class="text-xs text-muted-foreground">
+            <p class="text-xs game-text-muted">
               {{ card.id }} · {{ card.genre }} / {{ card.tone }} · v{{ card.schemaVersion }}
             </p>
           </div>
           <button class="btn" @click="$emit('exportCard', card.id)">导出</button>
         </div>
       </div>
-      <p v-if="worldCards.length === 0" class="text-sm text-muted-foreground">暂无世界卡。</p>
+      <p v-if="worldCards.length === 0" class="text-sm game-text-muted">暂无世界卡。</p>
     </div>
   </div>
 </template>
@@ -95,5 +95,9 @@ defineEmits<{
 .btn-primary {
   background: var(--game-btn-primary-bg);
   color: var(--game-btn-primary-text);
+}
+
+.game-text-muted {
+  color: var(--game-text-muted);
 }
 </style>

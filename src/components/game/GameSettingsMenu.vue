@@ -44,6 +44,7 @@ defineEmits<{
   border-radius: 16px;
   padding: 1.4rem;
   background: var(--game-menu-card-bg);
+  color: var(--game-btn-text);
   box-shadow: 0 20px 50px var(--game-menu-shadow);
 }
 
@@ -57,12 +58,13 @@ defineEmits<{
 .menu-title {
   font-size: 1.4rem;
   font-weight: 700;
+  color: var(--game-btn-text);
   margin-bottom: 0.25rem;
 }
 
 .menu-subtitle {
   font-size: 0.875rem;
-  color: var(--muted-foreground);
+  color: var(--game-text-muted);
   margin-bottom: 1rem;
 }
 
@@ -101,6 +103,6 @@ defineEmits<{
   border-radius: var(--radius-md);
   padding: 0.45rem;
   font-size: 0.8rem;
-  color: var(--muted-foreground);
+  color: var(--game-text-muted);
 }
 </style>
