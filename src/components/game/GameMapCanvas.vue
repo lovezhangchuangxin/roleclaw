@@ -1,6 +1,6 @@
 <template>
   <div>
-    <canvas ref="canvasRef" width="560" height="360" class="game-canvas w-full rounded border"></canvas>
+    <canvas ref="canvasRef" width="900" height="560" class="game-canvas w-full rounded border"></canvas>
     <p class="mt-2 text-xs game-text-muted">当前位置：{{ snapshot.currentLocationId }}</p>
     <div class="mt-2 flex flex-wrap gap-2">
       <button v-for="loc in reachableLocations" :key="loc.id" class="btn" @click="$emit('move', loc.id)">
@@ -90,6 +90,7 @@ onMounted(drawMap);
 .game-canvas {
   background: var(--game-canvas-bg);
   border-color: var(--game-panel-border);
+  height: clamp(260px, 42vh, 520px);
 }
 
 .btn {

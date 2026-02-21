@@ -90,7 +90,7 @@ export function useGameApp() {
 
   const newSave = ref<CreateSaveConfig>({
     saveName: "新冒险",
-    playerRole: "流浪调查员",
+    playerRole: "主角",
     worldCardId: "",
     modelProfileId: "",
   });

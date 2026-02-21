@@ -27,71 +27,174 @@
         {{ errorMsg }}
       </p>
 
-      <section v-if="view === 'new'" class="panel max-w-3xl">
-        <h2 class="panel-title">开始游戏</h2>
-        <p v-if="!defaultModelId" class="mb-3 text-sm game-text-muted">
-          尚未设置默认 AI 模型。请先前往“AI设置”新增模型并设为默认。
-        </p>
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="field">
-            <span>存档名称</span>
-            <input v-model="newSave.saveName" class="input" />
-          </label>
-          <label class="field">
-            <span>玩家角色</span>
-            <input v-model="newSave.playerRole" class="input" />
-          </label>
-          <label class="field md:col-span-2">
-            <span>世界卡</span>
-            <Select v-model="newSave.worldCardId">
-              <SelectTrigger class="w-full settings-select-trigger">
-                <SelectValue placeholder="选择世界卡" />
-              </SelectTrigger>
-              <SelectContent class="settings-select-content">
-                <SelectItem v-for="card in worldCards" :key="card.id" :value="card.id" class="settings-select-item">
-                  {{ card.name }} ({{ card.worldbook.playStyle }})
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-          <label class="field md:col-span-2">
-            <span>AI模型</span>
-            <Select v-model="newSave.modelProfileId">
-              <SelectTrigger class="w-full settings-select-trigger">
-                <SelectValue placeholder="选择AI模型" />
-              </SelectTrigger>
-              <SelectContent class="settings-select-content">
-                <SelectItem v-for="model in aiModels" :key="model.id" :value="model.id" class="settings-select-item">
-                  {{ model.provider }}/{{ model.model }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-        </div>
-        <div class="mt-4 flex gap-2">
-          <button class="btn" @click="setView('menu')">返回</button>
-          <button class="btn btn-primary" :disabled="!defaultModelId" @click="createNewSave">生成世界并开始</button>
+      <section v-if="view === 'new'" class="new-game-shell">
+        <div class="new-game-layout">
+          <aside class="panel new-game-overview">
+            <h2 class="panel-title mb-1">世界卡预览</h2>
+            <p class="text-sm game-text-muted">选择世界卡后，这里会显示核心摘要。</p>
+            <div v-if="selectedNewGameCard" class="new-game-overview-content">
+              <div class="new-game-overview-head">
+                <p class="text-base font-semibold">{{ selectedNewGameCard.name }}</p>
+                <p class="text-xs game-text-muted">{{ selectedNewGameCard.id }} · schema {{ selectedNewGameCard.schemaVersion }}</p>
+              </div>
+              <p class="text-sm">{{ selectedNewGameCard.worldbook.overview || "暂无世界简介" }}</p>
+              <div class="new-game-metrics">
+                <div class="new-game-metric">
+                  <span class="new-game-metric-label">地点</span>
+                  <b>{{ selectedNewGameCard.map.nodes.length }}</b>
+                </div>
+                <div class="new-game-metric">
+                  <span class="new-game-metric-label">NPC</span>
+                  <b>{{ selectedNewGameCard.npcs.length }}</b>
+                </div>
+                <div class="new-game-metric">
+                  <span class="new-game-metric-label">事件</span>
+                  <b>{{ selectedNewGameCard.events.length }}</b>
+                </div>
+                <div class="new-game-metric">
+                  <span class="new-game-metric-label">章节</span>
+                  <b>{{ selectedNewGameCard.chapterGoals.length }}</b>
+                </div>
+              </div>
+              <div class="new-game-tag-list">
+                <span v-for="conflict in selectedNewGameCard.worldbook.coreConflicts.slice(0, 4)" :key="conflict" class="new-game-tag">
+                  {{ conflict }}
+                </span>
+                <span v-if="selectedNewGameCard.worldbook.coreConflicts.length === 0" class="text-xs game-text-muted">未设置核心冲突标签</span>
+              </div>
+            </div>
+            <div v-else class="text-sm game-text-muted mt-3">
+              暂无可用世界卡，请先在世界卡管理页创建。
+            </div>
+          </aside>
+
+          <div class="panel new-game-panel">
+            <div class="new-game-head">
+              <h2 class="panel-title mb-1">开始游戏</h2>
+              <p class="text-sm game-text-muted">创建你的冒险入口：角色身份、世界卡与模型配置。</p>
+            </div>
+            <p v-if="!defaultModelId" class="new-game-warning text-sm game-text-muted">
+              尚未设置默认 AI 模型。请先前往“AI设置”新增模型并设为默认。
+            </p>
+            <div class="new-game-form grid gap-4 md:grid-cols-2">
+              <label class="field">
+                <span>存档名称</span>
+                <input v-model="newSave.saveName" class="input" />
+              </label>
+              <label class="field">
+                <span>玩家角色</span>
+                <input v-model="newSave.playerRole" class="input" />
+              </label>
+              <label class="field md:col-span-2">
+                <span>世界卡</span>
+                <Select v-model="newSave.worldCardId">
+                  <SelectTrigger class="w-full settings-select-trigger">
+                    <SelectValue placeholder="选择世界卡" />
+                  </SelectTrigger>
+                  <SelectContent class="settings-select-content">
+                    <SelectItem v-for="card in worldCards" :key="card.id" :value="card.id" class="settings-select-item">
+                      {{ card.name }} ({{ card.worldbook.playStyle }})
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label class="field md:col-span-2">
+                <span>AI模型</span>
+                <Select v-model="newSave.modelProfileId">
+                  <SelectTrigger class="w-full settings-select-trigger">
+                    <SelectValue placeholder="选择AI模型" />
+                  </SelectTrigger>
+                  <SelectContent class="settings-select-content">
+                    <SelectItem v-for="model in aiModels" :key="model.id" :value="model.id" class="settings-select-item">
+                      {{ model.provider }}/{{ model.model }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+            </div>
+            <div class="new-game-actions mt-4 flex gap-2">
+              <button class="btn" @click="setView('menu')">返回</button>
+              <button class="btn btn-primary" :disabled="!defaultModelId" @click="createNewSave">生成世界并开始</button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section v-if="view === 'saves'" class="panel max-w-4xl">
-        <h2 class="panel-title">存档管理</h2>
-        <div class="space-y-2">
-          <div v-for="save in saves" :key="save.id" class="rounded border p-2">
-            <div class="flex items-center justify-between gap-2">
-              <div>
-                <p class="font-medium">{{ save.name }}</p>
-                <p class="text-xs game-text-muted">
-                  回合 {{ save.currentTurn }} · {{ save.provider }} / {{ save.model }}
-                </p>
+      <section v-if="view === 'saves'" class="saves-shell">
+        <div class="panel saves-panel">
+          <div class="saves-head">
+            <div>
+              <h2 class="panel-title mb-1">存档管理</h2>
+              <p class="text-sm game-text-muted">选择一个存档继续冒险，或清理旧分支。</p>
+            </div>
+            <div class="saves-summary">
+              <div class="saves-summary-item">
+                <span>存档数</span>
+                <b>{{ saveStats.count }}</b>
               </div>
-              <div class="flex gap-2">
-                <button class="btn" @click="openSave(save.id)">载入</button>
-                <button class="btn" @click="removeSave(save.id)">删除</button>
+              <div class="saves-summary-item">
+                <span>最高回合</span>
+                <b>{{ saveStats.maxTurn }}</b>
+              </div>
+              <div class="saves-summary-item">
+                <span>分叉存档</span>
+                <b>{{ saveStats.forks }}</b>
               </div>
             </div>
           </div>
-          <p v-if="saves.length === 0" class="text-sm game-text-muted">暂无存档。</p>
+
+          <div class="saves-toolbar">
+            <input
+              v-model.trim="saveSearch"
+              class="input saves-search"
+              placeholder="搜索存档名 / 角色 / ID"
+            />
+            <Select v-model="saveSort">
+              <SelectTrigger class="w-[220px] settings-select-trigger">
+                <SelectValue placeholder="排序方式" />
+              </SelectTrigger>
+              <SelectContent class="settings-select-content">
+                <SelectItem value="updated_desc" class="settings-select-item">最近更新优先</SelectItem>
+                <SelectItem value="created_desc" class="settings-select-item">最近创建优先</SelectItem>
+                <SelectItem value="turn_desc" class="settings-select-item">最高回合优先</SelectItem>
+                <SelectItem value="name_asc" class="settings-select-item">名称 A-Z</SelectItem>
+              </SelectContent>
+            </Select>
+            <button class="btn" :disabled="saveStats.forks === 0" @click="clearForkSaves">
+              批量清理分叉
+            </button>
+          </div>
+
+          <div v-if="displayedSaves.length > 0" class="saves-list">
+            <article v-for="save in displayedSaves" :key="save.id" class="save-slot">
+              <div class="save-slot-main">
+                <div class="save-slot-title-row">
+                  <p class="save-slot-title">{{ save.name }}</p>
+                  <span v-if="save.parentSaveId" class="save-slot-badge">分叉</span>
+                </div>
+                <p class="save-slot-subtitle">
+                  回合 {{ save.currentTurn }} · {{ save.provider }} / {{ save.model }}
+                </p>
+                <div class="save-slot-meta">
+                  <span>角色：{{ save.playerRole }}</span>
+                  <span>更新：{{ formatDateTime(save.updatedAt) }}</span>
+                  <span>创建：{{ formatDateTime(save.createdAt) }}</span>
+                </div>
+                <p class="save-slot-id">ID: {{ save.id }}</p>
+              </div>
+              <div class="save-slot-actions">
+                <button class="btn btn-primary" @click="openSave(save.id)">继续</button>
+                <button class="btn" @click="removeSave(save.id)">删除</button>
+              </div>
+            </article>
+          </div>
+
+          <div v-else class="saves-empty">
+            <p class="text-sm game-text-muted">{{ saves.length === 0 ? "暂无存档。" : "没有匹配的存档。" }}</p>
+            <p class="text-xs game-text-muted">
+              {{ saves.length === 0 ? "返回主菜单点击“开始游戏”创建第一个存档。" : "尝试更换关键词或排序方式。" }}
+            </p>
+          </div>
         </div>
       </section>
 
@@ -354,69 +457,75 @@
         </div>
       </section>
 
-      <section v-if="view === 'game' && activeSave" class="grid gap-4 lg:grid-cols-[1.2fr_1.8fr_1fr]">
-        <div class="panel">
+      <section v-if="view === 'game' && activeSave" class="game-shell">
+        <div class="panel game-panel">
           <h2 class="panel-title">地图</h2>
-          <GameMapCanvas :snapshot="activeSave.snapshot" :reachable-locations="reachableLocations" @move="move" />
+          <div class="game-panel-content">
+            <GameMapCanvas :snapshot="activeSave.snapshot" :reachable-locations="reachableLocations" @move="move" />
+          </div>
         </div>
 
-        <div class="panel">
+        <div class="panel game-panel">
           <h2 class="panel-title">叙事与对话</h2>
-          <p class="mb-3 text-sm leading-6">{{ narrationText }}</p>
+          <div class="game-panel-content game-story-content">
+            <p class="text-sm leading-6">{{ narrationText }}</p>
 
-          <div class="space-y-2">
-            <button v-for="opt in options" :key="opt.id" class="btn w-full text-left" @click="submitOption(opt.id)">
-              [{{ opt.kind }}] {{ opt.text }}
-            </button>
-          </div>
+            <div class="space-y-2">
+              <button v-for="opt in options" :key="opt.id" class="btn w-full text-left" @click="submitOption(opt.id)">
+                [{{ opt.kind }}] {{ opt.text }}
+              </button>
+            </div>
 
-          <div class="mt-3 flex gap-2">
-            <input v-model="customInput" class="input flex-1" placeholder="输入你的自定义第四选项..." />
-            <button class="btn btn-primary" @click="submitCustom">提交</button>
+            <div class="game-custom-row mt-auto flex gap-2">
+              <input v-model="customInput" class="input flex-1" placeholder="输入你的自定义第四选项..." />
+              <button class="btn btn-primary" @click="submitCustom">提交</button>
+            </div>
           </div>
         </div>
 
-        <div class="panel">
+        <div class="panel game-panel">
           <h2 class="panel-title">状态</h2>
-          <p class="text-sm">存档：{{ activeSave.meta.name }}</p>
-          <p class="text-sm">回合：{{ activeSave.snapshot.turn }}</p>
-          <p class="text-sm">角色：{{ activeSave.snapshot.playerRole }}</p>
-          <p class="text-sm">模型：{{ activeSave.snapshot.modelLabel || activeSave.meta.model }}</p>
+          <div class="game-panel-content game-state-content">
+            <p class="text-sm">存档：{{ activeSave.meta.name }}</p>
+            <p class="text-sm">回合：{{ activeSave.snapshot.turn }}</p>
+            <p class="text-sm">角色：{{ activeSave.snapshot.playerRole }}</p>
+            <p class="text-sm">模型：{{ activeSave.snapshot.modelLabel || activeSave.meta.model }}</p>
 
-          <h3 class="mt-4 font-medium">最近变化</h3>
-          <ul class="mt-2 list-disc pl-5 text-sm">
-            <li v-for="line in stateChanges" :key="line">{{ line }}</li>
-          </ul>
+            <h3 class="mt-4 font-medium">最近变化</h3>
+            <ul class="mt-2 list-disc pl-5 text-sm">
+              <li v-for="line in stateChanges" :key="line">{{ line }}</li>
+            </ul>
 
-          <h3 class="mt-4 font-medium">任务进度</h3>
-          <ul class="mt-2 space-y-1 text-xs">
-            <li v-for="quest in activeSave.snapshot.quests" :key="quest.id" class="rounded border px-2 py-1">
-              {{ quest.title }} · 阶段 {{ quest.stage }} · {{ quest.completed ? "已完成" : "进行中" }}
-            </li>
-            <li v-if="activeSave.snapshot.quests.length === 0" class="game-text-muted">暂无任务</li>
-          </ul>
+            <h3 class="mt-4 font-medium">任务进度</h3>
+            <ul class="mt-2 space-y-1 text-xs">
+              <li v-for="quest in activeSave.snapshot.quests" :key="quest.id" class="rounded border px-2 py-1">
+                {{ quest.title }} · 阶段 {{ quest.stage }} · {{ quest.completed ? "已完成" : "进行中" }}
+              </li>
+              <li v-if="activeSave.snapshot.quests.length === 0" class="game-text-muted">暂无任务</li>
+            </ul>
 
-          <h3 class="mt-4 font-medium">关系矩阵</h3>
-          <ul class="mt-2 space-y-1 text-xs">
-            <li v-for="entry in relationshipEntries" :key="entry.id" class="rounded border px-2 py-1">
-              {{ entry.id }}: {{ entry.value }}
-            </li>
-            <li v-if="relationshipEntries.length === 0" class="game-text-muted">暂无关系记录</li>
-          </ul>
+            <h3 class="mt-4 font-medium">关系矩阵</h3>
+            <ul class="mt-2 space-y-1 text-xs">
+              <li v-for="entry in relationshipEntries" :key="entry.id" class="rounded border px-2 py-1">
+                {{ entry.id }}: {{ entry.value }}
+              </li>
+              <li v-if="relationshipEntries.length === 0" class="game-text-muted">暂无关系记录</li>
+            </ul>
 
-          <div class="mt-4 flex flex-wrap gap-2">
-            <button class="btn" @click="openReplayView">打开回放页</button>
-            <button class="btn btn-primary" @click="forkActiveSave">从当前回合分叉</button>
-          </div>
-          <ul v-if="replayPreview.length > 0" class="mt-3 space-y-1 text-xs">
-            <li v-for="item in replayPreview" :key="item.turn" class="rounded border px-2 py-1">
-              T{{ item.turn }} · {{ item.output?.stateChangesPreview?.join(" / ") || "无摘要" }}
-            </li>
-          </ul>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button class="btn" @click="openReplayView">打开回放页</button>
+              <button class="btn btn-primary" @click="forkActiveSave">从当前回合分叉</button>
+            </div>
+            <ul v-if="replayPreview.length > 0" class="mt-3 space-y-1 text-xs">
+              <li v-for="item in replayPreview" :key="item.turn" class="rounded border px-2 py-1">
+                T{{ item.turn }} · {{ item.output?.stateChangesPreview?.join(" / ") || "无摘要" }}
+              </li>
+            </ul>
 
-          <div v-if="gameSettings.logLevel === 'debug'" class="mt-3 rounded border p-2 text-xs">
-            <p class="font-medium mb-1">调试状态</p>
-            <pre class="overflow-auto">{{ JSON.stringify(activeSave.snapshot.worldVariables, null, 2) }}</pre>
+            <div v-if="gameSettings.logLevel === 'debug'" class="mt-3 rounded border p-2 text-xs">
+              <p class="font-medium mb-1">调试状态</p>
+              <pre class="overflow-auto">{{ JSON.stringify(activeSave.snapshot.worldVariables, null, 2) }}</pre>
+            </div>
           </div>
         </div>
       </section>
@@ -498,6 +607,10 @@ const {
 
 const showInGameMenu = ref(false);
 const copiedModelCheck = ref(false);
+const saveSearch = ref("");
+const saveSort = ref<"updated_desc" | "created_desc" | "turn_desc" | "name_asc">(
+  "updated_desc",
+);
 const themeOptions = [
   { value: "default", label: "默认", description: "清晰平衡，通用阅读" },
   { value: "fantasy", label: "沉浸幻想", description: "暖色羊皮卷氛围" },
@@ -518,6 +631,52 @@ const relationshipEntries = computed(() => {
     value: typeof value === "number" ? value.toFixed(1) : String(value),
   }));
 });
+const selectedNewGameCard = computed(() => {
+  if (!newSave.value.worldCardId) {
+    return worldCards.value[0] ?? null;
+  }
+  return (
+    worldCards.value.find((card) => card.id === newSave.value.worldCardId) ??
+    worldCards.value[0] ??
+    null
+  );
+});
+const saveStats = computed(() => ({
+  count: saves.value.length,
+  maxTurn: saves.value.reduce((max, item) => Math.max(max, item.currentTurn), 0),
+  forks: saves.value.filter((item) => Boolean(item.parentSaveId)).length,
+}));
+const displayedSaves = computed(() => {
+  const keyword = saveSearch.value.toLowerCase();
+  let rows = saves.value.filter((save) => {
+    if (!keyword) {
+      return true;
+    }
+    return (
+      save.name.toLowerCase().includes(keyword) ||
+      save.id.toLowerCase().includes(keyword) ||
+      save.playerRole.toLowerCase().includes(keyword)
+    );
+  });
+
+  rows = [...rows].sort((a, b) => {
+    if (saveSort.value === "created_desc") {
+      return b.createdAt.localeCompare(a.createdAt);
+    }
+    if (saveSort.value === "turn_desc") {
+      if (b.currentTurn !== a.currentTurn) {
+        return b.currentTurn - a.currentTurn;
+      }
+      return b.updatedAt.localeCompare(a.updatedAt);
+    }
+    if (saveSort.value === "name_asc") {
+      return a.name.localeCompare(b.name, "zh-Hans-CN");
+    }
+    return b.updatedAt.localeCompare(a.updatedAt);
+  });
+
+  return rows;
+});
 const selectedReplayItem = computed(() => {
   if (replaySelectedTurn.value == null) {
     return replayPreview.value[replayPreview.value.length - 1] ?? null;
@@ -528,6 +687,13 @@ const appStyleVars = computed<Record<string, string>>(() => ({
   "--game-font-scale": String(gameSettings.value.fontScale ?? 1),
   "--game-ui-zoom": String(gameSettings.value.uiZoom ?? 1),
 }));
+
+function formatDateTime(value: string): string {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
 
 function handleMenuSelect(action: "start" | "saves" | "ai" | "cards" | "settings" | "exit") {
   if (action === "exit") {
@@ -583,6 +749,20 @@ async function copyModelCheckError() {
     }, 1200);
   } catch {
     copiedModelCheck.value = false;
+  }
+}
+
+async function clearForkSaves() {
+  const forkIds = saves.value.filter((item) => item.parentSaveId).map((item) => item.id);
+  if (forkIds.length === 0) {
+    return;
+  }
+  const ok = window.confirm(`确认批量删除 ${forkIds.length} 个分叉存档吗？`);
+  if (!ok) {
+    return;
+  }
+  for (const id of forkIds) {
+    await removeSave(id);
   }
 }
 
@@ -809,6 +989,36 @@ onBeforeUnmount(() => {
   background: var(--game-btn-primary-hover-bg);
 }
 
+.game-shell {
+  min-height: calc(100dvh - 11rem);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.8fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.game-panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-panel-content {
+  min-height: 0;
+}
+
+.game-story-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100%;
+}
+
+.game-state-content {
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
 .error-banner {
   border: 1px solid var(--game-error-border);
   background: var(--game-error-bg);
@@ -978,6 +1188,233 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.new-game-shell {
+  min-height: calc(100dvh - 11rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.new-game-layout {
+  width: min(1100px, 100%);
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.4fr);
+  gap: 0.9rem;
+  align-items: stretch;
+}
+
+.new-game-overview {
+  padding: 1rem;
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+}
+
+.new-game-overview-content {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.new-game-overview-head {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px dashed var(--game-panel-border);
+}
+
+.new-game-panel {
+  padding: 1.15rem;
+}
+
+.new-game-head {
+  margin-bottom: 0.85rem;
+}
+
+.new-game-warning {
+  border: 1px dashed var(--game-panel-border);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.85rem;
+  background: color-mix(in oklab, var(--game-panel-bg) 88%, var(--game-mix-light) 12%);
+}
+
+.new-game-form {
+  align-items: end;
+}
+
+.new-game-actions {
+  justify-content: flex-end;
+}
+
+.new-game-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.new-game-metric {
+  border: 1px solid var(--game-panel-border);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.55rem;
+  background: color-mix(in oklab, var(--game-panel-bg) 92%, var(--game-mix-light) 8%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.new-game-metric-label {
+  font-size: 0.74rem;
+  color: var(--game-text-muted);
+}
+
+.new-game-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.36rem;
+}
+
+.new-game-tag {
+  border: 1px solid var(--game-panel-border);
+  border-radius: 999px;
+  padding: 0.12rem 0.46rem;
+  font-size: 0.72rem;
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 10%, var(--game-panel-bg) 90%);
+}
+
+.saves-shell {
+  min-height: calc(100dvh - 11rem);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.saves-panel {
+  width: min(1040px, 100%);
+  padding: 1rem;
+}
+
+.saves-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.8rem;
+  margin-bottom: 0.9rem;
+}
+
+.saves-summary {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.saves-summary-item {
+  border: 1px solid var(--game-panel-border);
+  border-radius: var(--radius-md);
+  padding: 0.38rem 0.6rem;
+  min-width: 86px;
+  display: grid;
+  gap: 0.06rem;
+  background: color-mix(in oklab, var(--game-panel-bg) 92%, var(--game-mix-light) 8%);
+}
+
+.saves-summary-item span {
+  font-size: 0.7rem;
+  color: var(--game-text-muted);
+}
+
+.saves-summary-item b {
+  font-size: 0.9rem;
+}
+
+.saves-list {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.saves-toolbar {
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.saves-search {
+  width: min(360px, 100%);
+}
+
+.save-slot {
+  border: 1px solid var(--game-panel-border);
+  border-radius: calc(var(--radius-lg) + 2px);
+  background:
+    linear-gradient(95deg, color-mix(in oklab, var(--game-panel-bg) 96%, transparent), color-mix(in oklab, var(--game-bg-layer-1) 24%, transparent));
+  padding: 0.75rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.save-slot:hover {
+  border-color: color-mix(in oklab, var(--game-btn-primary-bg) 42%, var(--game-panel-border) 58%);
+}
+
+.save-slot-main {
+  min-width: 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.save-slot-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.save-slot-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.save-slot-badge {
+  border: 1px solid color-mix(in oklab, var(--game-btn-primary-bg) 48%, var(--game-panel-border) 52%);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  padding: 0.05rem 0.42rem;
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 12%, var(--game-panel-bg) 88%);
+}
+
+.save-slot-subtitle {
+  font-size: 0.8rem;
+  color: var(--game-text-muted);
+}
+
+.save-slot-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  font-size: 0.72rem;
+  color: color-mix(in oklab, var(--game-btn-text) 78%, transparent);
+}
+
+.save-slot-id {
+  font-size: 0.7rem;
+  color: color-mix(in oklab, var(--game-btn-text) 62%, transparent);
+}
+
+.save-slot-actions {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.saves-empty {
+  border: 1px dashed var(--game-panel-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem;
+  background: color-mix(in oklab, var(--game-panel-bg) 95%, transparent);
+  display: grid;
+  gap: 0.2rem;
 }
 
 .settings-panel {
@@ -1162,6 +1599,82 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
+  .game-shell {
+    min-height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .game-state-content {
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .game-custom-row {
+    flex-direction: column;
+  }
+
+  .game-custom-row .btn {
+    width: 100%;
+  }
+
+  .new-game-shell {
+    align-items: flex-start;
+  }
+
+  .new-game-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .new-game-panel {
+    padding: 0.95rem;
+  }
+
+  .new-game-overview {
+    padding: 0.9rem;
+  }
+
+  .new-game-actions {
+    justify-content: stretch;
+  }
+
+  .new-game-actions .btn {
+    flex: 1;
+  }
+
+  .saves-shell {
+    align-items: stretch;
+  }
+
+  .saves-panel {
+    padding: 0.85rem;
+  }
+
+  .saves-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .saves-toolbar {
+    align-items: stretch;
+  }
+
+  .saves-search {
+    width: 100%;
+  }
+
+  .save-slot {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+
+  .save-slot-actions {
+    width: 100%;
+  }
+
+  .save-slot-actions .btn {
+    flex: 1;
+  }
+
   .settings-grid {
     grid-template-columns: 1fr;
   }
