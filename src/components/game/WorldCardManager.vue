@@ -3,11 +3,11 @@
     <h2 class="panel-title">世界卡管理（V2）</h2>
     <p class="mb-4 text-sm game-text-muted">编辑世界观、地点地图、固定 NPC、事件 Prompt 与章节目标。保存时会自动合并为 JSON。</p>
 
-    <div class="mb-4 flex flex-wrap items-center gap-2">
-      <button class="btn btn-primary" @click="createNewCard">新建世界卡（表单）</button>
-      <details class="advanced-box">
+    <div class="mb-4 world-card-tools">
+      <button class="btn btn-primary world-card-create-btn" @click="createNewCard">新建世界卡（表单）</button>
+      <details class="advanced-box world-card-advanced">
         <summary class="advanced-summary">AI 生成草稿</summary>
-        <div class="mt-2 grid gap-2">
+        <div class="mt-2 grid gap-2 w-full">
           <textarea
             :value="aiWorldCardPrompt"
             class="input h-24 w-full"
@@ -39,7 +39,7 @@
           </div>
         </div>
       </details>
-      <details class="advanced-box">
+      <details class="advanced-box world-card-advanced">
         <summary class="advanced-summary">高级：JSON 导入/导出</summary>
         <div class="mt-2 grid gap-3 md:grid-cols-2">
           <div>
@@ -73,22 +73,27 @@
           <input v-model="search" class="input w-44" placeholder="搜索名称/ID" />
         </div>
         <div class="space-y-2">
-          <button
+          <div
             v-for="card in filteredCards"
             :key="card.id"
             class="card-row"
             :class="{ 'card-row-active': selectedCardId === card.id }"
             @click="selectCard(card.id)"
+            @keydown.enter.prevent="selectCard(card.id)"
+            @keydown.space.prevent="selectCard(card.id)"
+            role="button"
+            tabindex="0"
           >
             <span>
               <b>{{ card.name }}</b>
               <small class="game-text-muted block">{{ card.id }} · schema {{ card.schemaVersion }}</small>
             </span>
             <span class="flex gap-2">
-              <span class="mini-btn" @click.stop="$emit('duplicateCard', card.id)">复制</span>
-              <span class="mini-btn" @click.stop="$emit('exportCard', card.id)">导出</span>
+              <button class="mini-btn" type="button" @click.stop="$emit('duplicateCard', card.id)">复制</button>
+              <button class="mini-btn" type="button" @click.stop="$emit('exportCard', card.id)">导出</button>
+              <button class="mini-btn mini-btn-danger" type="button" @click.stop="openDeleteDialog(card.id, card.name)">删除</button>
             </span>
-          </button>
+          </div>
           <p v-if="filteredCards.length === 0" class="text-sm game-text-muted">暂无匹配世界卡。</p>
         </div>
       </div>
@@ -221,12 +226,37 @@
       </div>
     </div>
   </div>
+
+  <AlertDialog v-model:open="deleteDialogOpen">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>确认删除世界卡？</AlertDialogTitle>
+        <AlertDialogDescription>
+          将删除「{{ pendingDeleteCard?.name || "该世界卡" }}」，此操作不可撤销。
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel @click="closeDeleteDialog">取消</AlertDialogCancel>
+        <AlertDialogAction @click="confirmDeleteCard">确认删除</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { CardEvent, ChapterGoal, NpcProfile, WorldCard } from "@/types";
 import WorldCardMapEditor from "@/components/game/WorldCardMapEditor.vue";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const props = defineProps<{
   worldCards: WorldCard[];
@@ -243,6 +273,7 @@ const emit = defineEmits<{
   importCard: [];
   exportCard: [cardId: string];
   duplicateCard: [cardId: string];
+  deleteCard: [cardId: string];
   saveEditedCard: [card: WorldCard];
   "update:cardImportText": [value: string];
   "update:cardExportPath": [value: string];
@@ -253,6 +284,8 @@ const emit = defineEmits<{
 const search = ref("");
 const selectedCardId = ref<string>("");
 const draftCard = ref<WorldCard | null>(null);
+const deleteDialogOpen = ref(false);
+const pendingDeleteCard = ref<{ id: string; name: string } | null>(null);
 
 const filteredCards = computed(() => {
   const keyword = search.value.trim().toLowerCase();
@@ -380,6 +413,24 @@ function removeChapter(index: number) {
   draftCard.value?.chapterGoals.splice(index, 1);
 }
 
+function openDeleteDialog(cardId: string, cardName: string) {
+  pendingDeleteCard.value = { id: cardId, name: cardName };
+  deleteDialogOpen.value = true;
+}
+
+function closeDeleteDialog() {
+  deleteDialogOpen.value = false;
+}
+
+function confirmDeleteCard() {
+  if (!pendingDeleteCard.value) {
+    return;
+  }
+  emit("deleteCard", pendingDeleteCard.value.id);
+  pendingDeleteCard.value = null;
+  deleteDialogOpen.value = false;
+}
+
 watch(
   () => props.aiGeneratedCard,
   (card) => {
@@ -406,6 +457,12 @@ watch(
   },
   { immediate: true, deep: true },
 );
+
+watch(deleteDialogOpen, (open) => {
+  if (!open) {
+    pendingDeleteCard.value = null;
+  }
+});
 </script>
 
 <style scoped>
@@ -494,6 +551,27 @@ watch(
   border: 1px dashed var(--game-panel-border);
   border-radius: var(--radius-md);
   padding: 0.45rem 0.6rem;
+}
+
+.world-card-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.world-card-create-btn {
+  flex: 0 0 auto;
+}
+
+.world-card-advanced {
+  flex: 1 1 24rem;
+  min-width: min(24rem, 100%);
+  width: 100%;
+}
+
+.world-card-advanced[open] {
+  flex-basis: 100%;
 }
 
 .advanced-summary {

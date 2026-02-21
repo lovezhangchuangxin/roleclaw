@@ -38,6 +38,7 @@ pub fn run() {
             commands::fork_save,
             commands::import_world_card,
             commands::export_world_card,
+            commands::delete_world_card,
             commands::list_world_cards,
             commands::get_global_game_data,
             commands::update_global_game_data,

@@ -712,6 +712,19 @@ pub fn export_world_card(card_id: String, file: String, app: AppHandle) -> ApiRe
 }
 
 #[tauri::command]
+pub fn delete_world_card(card_id: String, app: AppHandle) -> ApiResult<()> {
+    let paths = AppPaths::from_app(&app).map_err(map_storage_err)?;
+    let target = paths.world_cards_dir.join(format!("{card_id}.json"));
+    if !target.exists() {
+        return Err(AppError::not_found(format!(
+            "world card not found: {card_id}"
+        )));
+    }
+    fs::remove_file(&target)
+        .map_err(|e| AppError::storage(format!("failed to delete world card: {e}")))
+}
+
+#[tauri::command]
 pub fn generate_world(input: GenerateWorldInput, app: AppHandle) -> ApiResult<WorldInit> {
     let paths = AppPaths::from_app(&app).map_err(map_storage_err)?;
     let card: WorldCard = read_json(

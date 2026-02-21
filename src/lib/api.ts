@@ -153,6 +153,10 @@ export async function exportWorldCard(
   return invoke("export_world_card", { cardId, file });
 }
 
+export async function deleteWorldCard(cardId: string): Promise<void> {
+  return invoke("delete_world_card", { cardId });
+}
+
 export async function getGlobalGameData(): Promise<GlobalGameData> {
   return invoke("get_global_game_data");
 }

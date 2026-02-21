@@ -6,7 +6,7 @@
       :ai-world-card-stream-text="aiWorldCardStreamText" :ai-world-card-stream-parsed-ok="aiWorldCardStreamParsedOk"
       @update:card-import-text="cardImportText = $event" @update:card-export-path="cardExportPath = $event"
       @update:ai-world-card-prompt="aiWorldCardPrompt = $event" @import-card="importCardFromText"
-      @export-card="exportCard" @duplicate-card="duplicateCard" @save-edited-card="saveEditedCard"
+      @export-card="exportCard" @duplicate-card="duplicateCard" @delete-card="removeWorldCard" @save-edited-card="saveEditedCard"
       @generate-card-by-ai="generateCardDraftWithAi" />
   </section>
 </template>
@@ -27,6 +27,7 @@ const {
   importCardFromText,
   exportCard,
   duplicateCard,
+  removeWorldCard,
   saveEditedCard,
   generateCardDraftWithAi,
 } = useGameAppContext();

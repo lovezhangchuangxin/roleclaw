@@ -3,6 +3,7 @@ import {
   createSave,
   deleteAiModel,
   deleteSave,
+  deleteWorldCard,
   exportWorldCard,
   forkSave,
   generateWorldCardWithAiStream,
@@ -821,6 +822,16 @@ export function useGameApp() {
     }
   }
 
+  async function removeWorldCard(cardId: string) {
+    errorMsg.value = "";
+    try {
+      await deleteWorldCard(cardId);
+      await refreshHome();
+    } catch (err) {
+      setError(err);
+    }
+  }
+
   async function refreshReplayConsistency() {
     if (!activeSave.value) {
       return;
@@ -968,6 +979,7 @@ export function useGameApp() {
     importCardFromText,
     exportCard,
     duplicateCard,
+    removeWorldCard,
     saveEditedCard,
     generateCardDraftWithAi,
     refreshReplayConsistency,
