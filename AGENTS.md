@@ -114,7 +114,7 @@ roleclaw/
    - `--game-input-*`
    - `--game-canvas-*`
 5. UI 组件优先使用 `shadcn/vue` 现成组件，而不是优先自定义基础组件。
-6. 新增 `shadcn/vue` 组件使用命令：
+6. 新增 `shadcn/vue` 组件使用命令，如果下载遇到网络则要求手动下载而不是自行创建：
    `pnpm dlx shadcn-vue@latest add <component>`
 
 ## 9. 提交前检查清单
