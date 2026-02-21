@@ -12,7 +12,7 @@
       </div>
     </header>
 
-    <p v-if="errorMsg" class="error-banner mb-4 rounded p-2 text-sm">
+    <p v-if="errorMsg && view !== 'menu'" class="error-banner mb-4 rounded p-2 text-sm">
       {{ errorMsg }}
     </p>
 

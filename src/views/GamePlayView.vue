@@ -186,6 +186,9 @@ const {
 
 const showInGameMenu = ref(false);
 const gameMobileTab = ref<"map" | "story" | "state">("story");
+const START_BLOCKED_MSG = "无法开始游戏：当前没有默认 AI 模型。请先到 AI 设置新增模型并设为默认。";
+const START_BLOCKED_HINT_MS = 3600;
+let startBlockedTimer: ReturnType<typeof setTimeout> | null = null;
 
 const relationshipEntries = computed(() => {
   if (!activeSave.value) {
@@ -254,7 +257,7 @@ function handleMenuSelect(
 
   if (action === "start" || action === "new") {
     if (!defaultModelId.value) {
-      errorMsg.value = "无法开始游戏：当前没有默认 AI 模型。请先到 AI 设置新增模型并设为默认。";
+      showStartBlockedHint();
       setView("ai-settings");
       return;
     }
@@ -268,6 +271,19 @@ function handleMenuSelect(
   } else if (action === "settings") {
     setView("settings");
   }
+}
+
+function showStartBlockedHint() {
+  errorMsg.value = START_BLOCKED_MSG;
+  if (startBlockedTimer) {
+    clearTimeout(startBlockedTimer);
+  }
+  startBlockedTimer = setTimeout(() => {
+    if (errorMsg.value === START_BLOCKED_MSG) {
+      errorMsg.value = "";
+    }
+    startBlockedTimer = null;
+  }, START_BLOCKED_HINT_MS);
 }
 
 async function exitGame() {
@@ -292,5 +308,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKeydown);
+  if (startBlockedTimer) {
+    clearTimeout(startBlockedTimer);
+    startBlockedTimer = null;
+  }
 });
 </script>

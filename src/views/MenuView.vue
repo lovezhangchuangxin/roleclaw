@@ -20,12 +20,15 @@
 
 <script setup lang="ts">
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { computed } from "vue";
+import { computed, onBeforeUnmount } from "vue";
 import GameSettingsMenu from "@/components/game/GameSettingsMenu.vue";
 import { useGameAppContext } from "@/composables/useGameAppContext";
 import { exitApp } from "@/lib/api";
 
 const { defaultModelId, errorMsg, saves, openSave, setView } = useGameAppContext();
+const START_BLOCKED_MSG = "未设置默认 AI 模型，请前往 AI 设置。";
+const START_BLOCKED_HINT_MS = 3600;
+let startBlockedTimer: ReturnType<typeof setTimeout> | null = null;
 
 const latestSave = computed(() => saves.value[0] ?? null);
 const startLabel = computed(() =>
@@ -51,7 +54,7 @@ async function handleMenuSelect(
 
   if (action === "new") {
     if (!defaultModelId.value) {
-      errorMsg.value = "无法开始游戏：当前没有默认 AI 模型。请先到 AI 设置新增模型并设为默认。";
+      showStartBlockedHint();
       setView("ai-settings");
       return;
     }
@@ -70,6 +73,19 @@ async function handleMenuSelect(
   }
 }
 
+function showStartBlockedHint() {
+  errorMsg.value = START_BLOCKED_MSG;
+  if (startBlockedTimer) {
+    clearTimeout(startBlockedTimer);
+  }
+  startBlockedTimer = setTimeout(() => {
+    if (errorMsg.value === START_BLOCKED_MSG) {
+      errorMsg.value = "";
+    }
+    startBlockedTimer = null;
+  }, START_BLOCKED_HINT_MS);
+}
+
 async function exitGame() {
   try {
     await exitApp();
@@ -85,4 +101,11 @@ async function exitGame() {
     window.close();
   }
 }
+
+onBeforeUnmount(() => {
+  if (startBlockedTimer) {
+    clearTimeout(startBlockedTimer);
+    startBlockedTimer = null;
+  }
+});
 </script>
