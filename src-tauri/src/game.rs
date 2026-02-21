@@ -5,7 +5,7 @@ use crate::domain::{
     TaskStateItem, TriggerCondition, TurnInput, TurnResult, TurnStateProposal, WorldBook, WorldCard,
     WorldInit, WorldMap,
 };
-use crate::llm::{generate_turn_json, stream_turn_json};
+use crate::llm::{generate_turn_json, stream_turn_json, TurnJsonStreamPiece};
 use crate::storage::{
     append_ndjson, collect_recent_logs, load_global_data, load_meta, load_snapshot, now_iso,
     read_json, write_meta, write_snapshot, AppPaths,
@@ -1227,51 +1227,65 @@ pub async fn run_turn_stream_with_provider(
     let mut seen_narration_chars = 0usize;
     let mut emitted_options_preview = false;
     let mut emitted_state_preview = false;
-    let mut on_chunk = |chunk: &str| -> Result<(), String> {
-        streamed_raw.push_str(chunk);
-        on_event(TurnStreamEvent {
-            phase: "delta".to_string(),
-            event_type: Some("json_delta".to_string()),
-            chunk: Some(chunk.to_string()),
-            data: None,
-        })?;
-        if let Ok(preview) = parse_turn_proposal(&streamed_raw) {
-            if let Some(delta) = delta_from_seen_chars(&preview.narration, &mut seen_narration_chars)
-            {
+    let mut on_piece = |piece: TurnJsonStreamPiece| -> Result<(), String> {
+        match piece {
+            TurnJsonStreamPiece::Reasoning(chunk) => {
                 on_event(TurnStreamEvent {
                     phase: "delta".to_string(),
-                    event_type: Some("narration_delta".to_string()),
-                    chunk: Some(delta),
+                    event_type: Some("status".to_string()),
+                    chunk: None,
+                    data: Some(json!({ "reasoning": chunk })),
+                })?;
+            }
+            TurnJsonStreamPiece::Content(chunk) => {
+                streamed_raw.push_str(&chunk);
+                on_event(TurnStreamEvent {
+                    phase: "delta".to_string(),
+                    event_type: Some("json_delta".to_string()),
+                    chunk: Some(chunk),
                     data: None,
                 })?;
-            }
-            if !emitted_options_preview {
-                emitted_options_preview = true;
-                on_event(TurnStreamEvent {
-                    phase: "preview".to_string(),
-                    event_type: Some("options_preview".to_string()),
-                    chunk: None,
-                    data: Some(json!({ "options": preview.options })),
-                })?;
-            }
-            if !emitted_state_preview {
-                emitted_state_preview = true;
-                on_event(TurnStreamEvent {
-                    phase: "preview".to_string(),
-                    event_type: Some("state_preview".to_string()),
-                    chunk: None,
-                    data: Some(json!({
-                        "storyState": preview.story_state,
-                        "taskState": preview.task_state,
-                        "relationshipDeltas": preview.relationship_deltas,
-                        "stateChangesPreview": preview.state_changes_preview
-                    })),
-                })?;
+                if let Ok(preview) = parse_turn_proposal(&streamed_raw) {
+                    if let Some(delta) =
+                        delta_from_seen_chars(&preview.narration, &mut seen_narration_chars)
+                    {
+                        on_event(TurnStreamEvent {
+                            phase: "delta".to_string(),
+                            event_type: Some("narration_delta".to_string()),
+                            chunk: Some(delta),
+                            data: None,
+                        })?;
+                    }
+                    if !emitted_options_preview {
+                        emitted_options_preview = true;
+                        on_event(TurnStreamEvent {
+                            phase: "preview".to_string(),
+                            event_type: Some("options_preview".to_string()),
+                            chunk: None,
+                            data: Some(json!({ "options": preview.options })),
+                        })?;
+                    }
+                    if !emitted_state_preview {
+                        emitted_state_preview = true;
+                        on_event(TurnStreamEvent {
+                            phase: "preview".to_string(),
+                            event_type: Some("state_preview".to_string()),
+                            chunk: None,
+                            data: Some(json!({
+                                "storyState": preview.story_state,
+                                "taskState": preview.task_state,
+                                "relationshipDeltas": preview.relationship_deltas,
+                                "stateChangesPreview": preview.state_changes_preview
+                            })),
+                        })?;
+                    }
+                }
             }
         }
         Ok(())
     };
-    let raw = match stream_turn_json(&runtime_config, &prompt, &mut on_chunk).await {
+
+    let raw = match stream_turn_json(&runtime_config, &prompt, &mut on_piece).await {
         Ok(text) => text,
         Err(stream_err) => {
             on_event(TurnStreamEvent {

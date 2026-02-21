@@ -88,6 +88,9 @@ export function useGameApp() {
     stateChangesPreview: [],
   });
   const turnStreamingStatus = ref<"idle" | "running" | "error">("idle");
+  const turnStreamingHint = ref("");
+  const turnStreamingHintPending = ref("");
+  const turnStreamingHintLines = ref<string[]>([]);
   const customInput = ref("");
   const cardImportText = ref("");
   const cardExportPath = ref("");
@@ -406,6 +409,78 @@ export function useGameApp() {
     }
   }
 
+  const REASONING_LINE_TARGET_CHARS = 28;
+  const REASONING_LINE_MIN_CHARS = 16;
+  const REASONING_MAX_LINES = 2;
+
+  function normalizeReasoningChunk(input: string): string {
+    return input.replace(/\s+/g, " ").trim();
+  }
+
+  function splitReasoningLine(pending: string): { line: string; rest: string } | null {
+    if (!pending.trim()) {
+      return null;
+    }
+    const text = pending.trim();
+    if (text.length < REASONING_LINE_MIN_CHARS) {
+      return null;
+    }
+
+    const punct = /[。！？；.!?;]/g;
+    let match: RegExpExecArray | null = null;
+    let bestEnd = -1;
+    while ((match = punct.exec(text)) !== null) {
+      const end = match.index + 1;
+      if (end >= REASONING_LINE_MIN_CHARS && end <= REASONING_LINE_TARGET_CHARS + 8) {
+        bestEnd = end;
+      }
+    }
+    if (bestEnd > 0) {
+      return {
+        line: text.slice(0, bestEnd).trim(),
+        rest: text.slice(bestEnd).trim(),
+      };
+    }
+
+    if (text.length >= REASONING_LINE_TARGET_CHARS) {
+      return {
+        line: text.slice(0, REASONING_LINE_TARGET_CHARS).trim(),
+        rest: text.slice(REASONING_LINE_TARGET_CHARS).trim(),
+      };
+    }
+    return null;
+  }
+
+  function flushReasoningHint(force = false) {
+    let pending = turnStreamingHintPending.value;
+    while (true) {
+      const next = splitReasoningLine(pending);
+      if (!next) {
+        break;
+      }
+      if (next.line) {
+        turnStreamingHintLines.value.push(next.line);
+      }
+      pending = next.rest;
+    }
+
+    if (force && pending.trim()) {
+      turnStreamingHintLines.value.push(pending.trim());
+      pending = "";
+    }
+
+    if (turnStreamingHintLines.value.length > REASONING_MAX_LINES) {
+      turnStreamingHintLines.value = turnStreamingHintLines.value.slice(
+        turnStreamingHintLines.value.length - REASONING_MAX_LINES,
+      );
+    }
+
+    turnStreamingHintPending.value = pending;
+    turnStreamingHint.value = turnStreamingHintLines.value.length
+      ? `AI 思考中：${turnStreamingHintLines.value.join(" ")}`
+      : "";
+  }
+
   async function applyTurnResult(result: TurnResult) {
     narrationText.value = result.narration;
     stateChanges.value = result.stateChangesPreview;
@@ -426,6 +501,9 @@ export function useGameApp() {
 
   function resetTurnStreaming() {
     streamingNarrationText.value = "";
+    turnStreamingHint.value = "";
+    turnStreamingHintPending.value = "";
+    turnStreamingHintLines.value = [];
     streamingStructuredPreview.value = {
       storyState: null,
       taskState: null,
@@ -490,6 +568,16 @@ export function useGameApp() {
       }
       if (payload.phase === "final" || payload.phase === "end") {
         turnStreamingStatus.value = "idle";
+        flushReasoningHint(true);
+        turnStreamingHint.value = "";
+      }
+      const reasoning = payload.data?.reasoning;
+      if (typeof reasoning === "string" && reasoning.trim()) {
+        const normalized = normalizeReasoningChunk(reasoning);
+        if (normalized) {
+          turnStreamingHintPending.value = `${turnStreamingHintPending.value} ${normalized}`.trim();
+          flushReasoningHint(false);
+        }
       }
       return;
     }
@@ -559,6 +647,7 @@ export function useGameApp() {
       await applyTurnResult(result);
     } catch (err) {
       turnStreamingStatus.value = "error";
+      turnStreamingHint.value = "";
       setError(err);
     }
   }
@@ -583,6 +672,7 @@ export function useGameApp() {
       await applyTurnResult(result);
     } catch (err) {
       turnStreamingStatus.value = "error";
+      turnStreamingHint.value = "";
       setError(err);
     }
   }
@@ -828,6 +918,7 @@ export function useGameApp() {
     streamingNarrationText,
     streamingStructuredPreview,
     turnStreamingStatus,
+    turnStreamingHint,
     stateChanges,
     options,
     customInput,

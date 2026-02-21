@@ -1,7 +1,7 @@
 use crate::domain::ModelProviderConfig;
 use futures_util::StreamExt;
 use genai::adapter::AdapterKind;
-use genai::chat::{ChatOptions, ChatRequest, ChatStreamEvent};
+use genai::chat::{ChatOptions, ChatRequest, ChatStreamEvent, ReasoningEffort};
 use genai::resolver::{AuthData, Endpoint, Result as ResolverResult};
 use genai::{Client, ModelIden, ServiceTarget, WebConfig};
 use std::time::Duration;
@@ -10,6 +10,11 @@ const CONNECTIVITY_MAX_TOKENS: u32 = 64;
 const TURN_JSON_MAX_TOKENS: u32 = 5200;
 const WORLD_CARD_MAX_TOKENS: u32 = 6400;
 const PROVIDER_MAX_TOKENS_CAP: u32 = 65_536;
+
+pub enum TurnJsonStreamPiece {
+    Content(String),
+    Reasoning(String),
+}
 
 fn to_adapter(provider_type: &str) -> Result<AdapterKind, String> {
     match provider_type {
@@ -24,6 +29,26 @@ fn to_adapter(provider_type: &str) -> Result<AdapterKind, String> {
 fn configured_max_tokens(config: &ModelProviderConfig, fallback: u32, scenario_cap: u32) -> u32 {
     let requested = config.max_tokens.unwrap_or(fallback);
     requested.clamp(1, scenario_cap.min(PROVIDER_MAX_TOKENS_CAP))
+}
+
+fn is_reasoning_model(model: &str) -> bool {
+    let lower = model.to_lowercase();
+    lower.contains("reasoner") || lower.contains("r1")
+}
+
+fn build_turn_chat_options(config: &ModelProviderConfig) -> ChatOptions {
+    let mut options = ChatOptions::default()
+        .with_temperature(config.temperature as f64)
+        .with_max_tokens(configured_max_tokens(
+            config,
+            TURN_JSON_MAX_TOKENS,
+            TURN_JSON_MAX_TOKENS,
+        ))
+        .with_capture_reasoning_content(true);
+    if is_reasoning_model(&config.model) {
+        options = options.with_reasoning_effort(ReasoningEffort::Low);
+    }
+    options
 }
 
 fn normalize_base_url_for_join(input: &str) -> String {
@@ -76,8 +101,7 @@ fn build_client(config: &ModelProviderConfig) -> Result<Client, String> {
 
     // Use idle/read timeout instead of total request timeout:
     // as long as stream bytes continue to arrive, the request stays alive.
-    let mut web_config =
-        WebConfig::default().with_connect_timeout(Duration::from_millis(15_000));
+    let mut web_config = WebConfig::default().with_connect_timeout(Duration::from_millis(15_000));
     web_config.read_timeout = Some(Duration::from_millis(config.timeout_ms as u64));
 
     Ok(Client::builder()
@@ -131,13 +155,7 @@ pub async fn generate_turn_json(
     let req = ChatRequest::from_user(prompt).with_system(
         "你是中文 RPG 回合引擎。你必须只输出一个 JSON 对象，不要输出 markdown、代码块或解释。",
     );
-    let options = ChatOptions::default()
-        .with_temperature(config.temperature as f64)
-        .with_max_tokens(configured_max_tokens(
-            config,
-            TURN_JSON_MAX_TOKENS,
-            TURN_JSON_MAX_TOKENS,
-        ));
+    let options = build_turn_chat_options(config);
     let chat_res = client
         .exec_chat(&config.model, req, Some(&options))
         .await
@@ -158,19 +176,13 @@ pub async fn generate_turn_json(
 pub async fn stream_turn_json(
     config: &ModelProviderConfig,
     prompt: &str,
-    on_chunk: &mut (dyn FnMut(&str) -> Result<(), String> + Send),
+    on_piece: &mut (dyn FnMut(TurnJsonStreamPiece) -> Result<(), String> + Send),
 ) -> Result<String, String> {
     let client = build_client(config)?;
     let req = ChatRequest::from_user(prompt).with_system(
         "你是中文 RPG 回合引擎。你必须只输出一个 JSON 对象，不要输出 markdown、代码块或解释。",
     );
-    let options = ChatOptions::default()
-        .with_temperature(config.temperature as f64)
-        .with_max_tokens(configured_max_tokens(
-            config,
-            TURN_JSON_MAX_TOKENS,
-            TURN_JSON_MAX_TOKENS,
-        ));
+    let options = build_turn_chat_options(config);
     let mut stream_res = client
         .exec_chat_stream(&config.model, req, Some(&options))
         .await
@@ -183,26 +195,27 @@ pub async fn stream_turn_json(
         })?;
 
     let mut out = String::new();
-    let mut chunk_count = 0usize;
     while let Some(event) = stream_res.stream.next().await {
         let event = event.map_err(|e| format!("genai 回合 JSON 流式事件错误: {e}"))?;
-        if let ChatStreamEvent::Chunk(chunk) = event {
-            chunk_count += 1;
-            out.push_str(&chunk.content);
-            eprintln!(
-                "[llm] turn json stream recv chunk#{} size={} total={}",
-                chunk_count,
-                chunk.content.chars().count(),
-                out.chars().count()
-            );
-            on_chunk(&chunk.content)?;
+        match event {
+            ChatStreamEvent::Chunk(chunk) => {
+                out.push_str(&chunk.content);
+                on_piece(TurnJsonStreamPiece::Content(chunk.content))?;
+            }
+            ChatStreamEvent::ReasoningChunk(chunk) => {
+                let reasoning = chunk.content;
+                if !reasoning.is_empty() {
+                    on_piece(TurnJsonStreamPiece::Reasoning(reasoning))?;
+                }
+            }
+            _ => {}
         }
     }
-    eprintln!(
-        "[llm] turn json stream completed chunks={} totalChars={}",
-        chunk_count,
-        out.chars().count()
-    );
+    // eprintln!(
+    //     "[llm] turn json stream completed chunks={} totalChars={}",
+    //     chunk_count,
+    //     out.chars().count()
+    // );
     let text = out.trim().to_string();
     if text.is_empty() {
         return Err("模型流式返回了空内容".to_string());

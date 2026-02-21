@@ -42,7 +42,7 @@
       <div class="game-panel-content game-story-content">
         <p class="text-sm leading-6 game-story-narration">{{ narrationText }}</p>
         <p v-if="turnStreamingStatus === 'running'" class="text-xs game-text-muted">
-          AI 正在生成回合内容...
+          {{ turnStreamingHint || "AI 思考中..." }}
         </p>
 
         <section
@@ -157,6 +157,7 @@ const {
   narrationText,
   streamingStructuredPreview,
   turnStreamingStatus,
+  turnStreamingHint,
   stateChanges,
   options,
   customInput,
