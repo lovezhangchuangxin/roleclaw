@@ -16,14 +16,169 @@ pub enum TurnJsonStreamPiece {
     Reasoning(String),
 }
 
-fn to_adapter(provider_type: &str) -> Result<AdapterKind, String> {
-    match provider_type {
-        "openai_compatible" => Ok(AdapterKind::OpenAI),
-        other => Err(format!(
-            "不支持的 providerType: {}（当前仅支持 openai_compatible）",
-            other
-        )),
+/// 支持的模型提供商类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderType {
+    OpenAI,           // OpenAI 兼容 (OpenAI, 第三方兼容 API)
+    Anthropic,       // Anthropic Claude
+    Google,          // Google Gemini
+    AzureOpenAI,     // Azure OpenAI
+    Ollama,          // 本地 Ollama
+    Groq,            // Groq
+    Cohere,          // Cohere
+    Mistral,         // Mistral
+    Custom,          // 自定义 API
+}
+
+impl ProviderType {
+    /// 从字符串解析提供商类型
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "openai" | "openai_compatible" => ProviderType::OpenAI,
+            "anthropic" | "claude" => ProviderType::Anthropic,
+            "google" | "gemini" => ProviderType::Google,
+            "azure" | "azure_openai" => ProviderType::AzureOpenAI,
+            "ollama" => ProviderType::Ollama,
+            "groq" => ProviderType::Groq,
+            "cohere" => ProviderType::Cohere,
+            "mistral" => ProviderType::Mistral,
+            "custom" => ProviderType::Custom,
+            _ => ProviderType::OpenAI, // 默认使用 OpenAI 兼容模式
+        }
     }
+
+    /// 获取对应的 AdapterKind
+    pub fn to_adapter(self) -> Result<AdapterKind, String> {
+        match self {
+            ProviderType::OpenAI => Ok(AdapterKind::OpenAI),
+            ProviderType::Anthropic => Ok(AdapterKind::Anthropic),
+            ProviderType::Google => Ok(AdapterKind::Google),
+            ProviderType::AzureOpenAI => Ok(AdapterKind::AzureOpenAI),
+            ProviderType::Ollama => Ok(AdapterKind::Ollama),
+            ProviderType::Groq => Ok(AdapterKind::Groq),
+            ProviderType::Cohere => Ok(AdapterKind::Cohere),
+            ProviderType::Mistral => Ok(AdapterKind::Mistral),
+            ProviderType::Custom => Ok(AdapterKind::OpenAI), // 自定义也用 OpenAI 兼容模式
+        }
+    }
+
+    /// 是否需要 API Key
+    pub fn requires_api_key(self) -> bool {
+        match self {
+            ProviderType::Ollama => false, // 本地部署不需要 API Key
+            _ => true,
+        }
+    }
+
+    /// 获取默认的 Base URL
+    pub fn default_base_url(self) -> &'static str {
+        match self {
+            ProviderType::OpenAI => "https://api.openai.com/v1",
+            ProviderType::Anthropic => "https://api.anthropic.com/v1",
+            ProviderType::Google => "https://generativelanguage.googleapis.com/v1",
+            ProviderType::AzureOpenAI => "", // Azure 需要用户配置
+            ProviderType::Ollama => "http://localhost:11434",
+            ProviderType::Groq => "https://api.groq.com/openai/v1",
+            ProviderType::Cohere => "https://api.cohere.ai/v1",
+            ProviderType::Mistral => "https://api.mistral.ai/v1",
+            ProviderType::Custom => "", // 自定义需要用户配置
+        }
+    }
+
+    /// 获取支持的模型列表
+    pub fn supported_models(self) -> Vec<&'static str> {
+        match self {
+            ProviderType::OpenAI => vec![
+                "gpt-4o",
+                "gpt-4o-mini",
+                "gpt-4-turbo",
+                "gpt-4",
+                "gpt-3.5-turbo",
+                "o1",
+                "o1-mini",
+                "o3-mini",
+            ],
+            ProviderType::Anthropic => vec![
+                "claude-sonnet-4-20250514",
+                "claude-sonnet-4-20250507",
+                "claude-3-5-sonnet-20241022",
+                "claude-3-5-sonnet-20240620",
+                "claude-3-opus-20240229",
+                "claude-3-haiku-20240307",
+            ],
+            ProviderType::Google => vec![
+                "gemini-2.0-flash-exp",
+                "gemini-2.0-flash",
+                "gemini-1.5-pro",
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-8b",
+            ],
+            ProviderType::AzureOpenAI => vec![
+                "gpt-4o",
+                "gpt-4o-mini",
+                "gpt-4-turbo",
+                "gpt-35-turbo",
+            ],
+            ProviderType::Ollama => vec![
+                "llama3.3",
+                "llama3.2",
+                "llama3.1",
+                "llama3",
+                "qwen2.5",
+                "qwen2",
+                "mistral",
+                "phi4",
+                "deepseek-r1",
+                "gemma2",
+            ],
+            ProviderType::Groq => vec![
+                "llama-3.3-70b-versatile",
+                "llama-3.1-70b-versatile",
+                "llama-3.1-8b-instant",
+                "mixtral-8x7b-32768",
+                "gemma2-9b-it",
+            ],
+            ProviderType::Cohere => vec![
+                "command-r-plus",
+                "command-r",
+                "command",
+                "command-light",
+            ],
+            ProviderType::Mistral => vec![
+                "mistral-large-latest",
+                "mistral-small-latest",
+                "mistral-medium-latest",
+                "pixtral-large-latest",
+                "pixtral-small-latest",
+            ],
+            ProviderType::Custom => vec![], // 自定义由用户指定
+        }
+    }
+}
+
+/// 获取提供商的默认 URL
+pub fn get_default_base_url(provider_type: &str) -> String {
+    ProviderType::from_str(provider_type)
+        .default_base_url()
+        .to_string()
+}
+
+/// 获取支持的模型列表
+pub fn get_supported_models(provider_type: &str) -> Vec<String> {
+    ProviderType::from_str(provider_type)
+        .supported_models()
+        .into_iter()
+        .map(String::from)
+        .collect()
+}
+
+/// 检查提供商是否需要 API Key
+pub fn provider_requires_api_key(provider_type: &str) -> bool {
+    ProviderType::from_str(provider_type).requires_api_key()
+}
+
+fn to_adapter(provider_type: &str) -> Result<AdapterKind, String> {
+    ProviderType::from_str(provider_type).to_adapter()
 }
 
 fn configured_max_tokens(config: &ModelProviderConfig, fallback: u32, scenario_cap: u32) -> u32 {
@@ -33,7 +188,20 @@ fn configured_max_tokens(config: &ModelProviderConfig, fallback: u32, scenario_c
 
 fn is_reasoning_model(model: &str) -> bool {
     let lower = model.to_lowercase();
-    lower.contains("reasoner") || lower.contains("r1")
+    lower.contains("reasoner")
+        || lower.contains("r1")
+        || lower.contains("o1")
+        || lower.contains("o3")
+        || lower.contains("deepseek-r1")
+        || lower.contains("qwq")
+}
+
+fn is_vision_model(model: &str) -> bool {
+    let lower = model.to_lowercase();
+    lower.contains("vision")
+        || lower.contains("gpt-4o")
+        || lower.contains("claude-3")
+        || lower.contains("gemini-1.5")
 }
 
 fn build_turn_chat_options(config: &ModelProviderConfig) -> ChatOptions {
@@ -45,9 +213,11 @@ fn build_turn_chat_options(config: &ModelProviderConfig) -> ChatOptions {
             TURN_JSON_MAX_TOKENS,
         ))
         .with_capture_reasoning_content(true);
+    
     if is_reasoning_model(&config.model) {
         options = options.with_reasoning_effort(ReasoningEffort::Low);
     }
+    
     options
 }
 
@@ -65,12 +235,19 @@ fn normalize_base_url_for_join(input: &str) -> String {
 
 fn build_client(config: &ModelProviderConfig) -> Result<Client, String> {
     let base_url = normalize_base_url_for_join(&config.base_url);
-    let api_key = config
-        .api_key
-        .clone()
-        .filter(|key| !key.trim().is_empty())
-        .ok_or_else(|| "apiKey 不能为空".to_string())?;
-    let adapter = to_adapter(&config.provider_type)?;
+    let provider_type = ProviderType::from_str(&config.provider_type);
+    
+    // 检查是否需要 API Key
+    if provider_type.requires_api_key() {
+        let _ = config
+            .api_key
+            .clone()
+            .filter(|key| !key.trim().is_empty())
+            .ok_or_else(|| "apiKey 不能为空".to_string())?;
+    }
+    
+    let adapter = provider_type.to_adapter()?;
+    
     eprintln!(
         "[llm] build_client providerType={} provider={} model={} baseUrlRaw={} baseUrlNormalized={} timeoutMs={}",
         config.provider_type,
@@ -81,6 +258,8 @@ fn build_client(config: &ModelProviderConfig) -> Result<Client, String> {
         config.timeout_ms
     );
 
+    let api_key = config.api_key.clone();
+    
     let model_mapper = move |model_iden: ModelIden| -> ResolverResult<ModelIden> {
         Ok(ModelIden::new(
             adapter.clone(),
@@ -89,7 +268,12 @@ fn build_client(config: &ModelProviderConfig) -> Result<Client, String> {
     };
 
     let auth_resolver = move |_model_iden: ModelIden| -> ResolverResult<Option<AuthData>> {
-        Ok(Some(AuthData::from_single(api_key.clone())))
+        if let Some(key) = api_key.as_ref() {
+            if !key.trim().is_empty() {
+                return Ok(Some(AuthData::from_single(key.clone())));
+            }
+        }
+        Ok(None)
     };
 
     let target_resolver = move |mut target: ServiceTarget| -> ResolverResult<ServiceTarget> {
@@ -113,6 +297,15 @@ fn build_client(config: &ModelProviderConfig) -> Result<Client, String> {
 }
 
 pub async fn test_provider_connectivity(config: &ModelProviderConfig) -> Result<String, String> {
+    let provider_type = ProviderType::from_str(&config.provider_type);
+    
+    // 检查 API Key
+    if provider_type.requires_api_key() {
+        if config.api_key.as_ref().map(|k| k.trim().is_empty()).unwrap_or(true) {
+            return Err("API Key 不能为空".to_string());
+        }
+    }
+    
     let _ = to_adapter(&config.provider_type)?;
 
     let client = build_client(config)?;
@@ -149,100 +342,88 @@ pub async fn test_provider_connectivity(config: &ModelProviderConfig) -> Result<
 
 pub async fn generate_turn_json(
     config: &ModelProviderConfig,
-    prompt: &str,
+    system_prompt: &str,
+    context_prompt: &str,
 ) -> Result<String, String> {
     let client = build_client(config)?;
-    let req = ChatRequest::from_user(prompt).with_system(
-        "你是中文 RPG 回合引擎。你必须只输出一个 JSON 对象，不要输出 markdown、代码块或解释。",
-    );
-    let options = build_turn_chat_options(config);
+    let chat_options = build_turn_chat_options(config);
+
+    let req = ChatRequest::new(vec![
+        system_prompt.into(),
+        context_prompt.into(),
+    ]);
+
     let chat_res = client
-        .exec_chat(&config.model, req, Some(&options))
+        .exec_chat(&config.model, req, Some(&chat_options))
         .await
         .map_err(|e| {
             eprintln!(
-                "[llm] turn json failed model={} baseUrl={} err={:?}",
+                "[llm] generate_turn_json failed model={} baseUrl={} err={:?}",
                 config.model, config.base_url, e
             );
-            format!("genai 回合 JSON 生成失败: {e}")
+            format!("genai 调用失败: {e}")
         })?;
-    let text = chat_res.first_text().unwrap_or("").trim().to_string();
-    if text.is_empty() {
-        return Err("模型返回了空内容".to_string());
-    }
+
+    let text = chat_res
+        .first_text()
+        .ok_or_else(|| "模型返回为空".to_string())?;
     Ok(text)
 }
 
-pub async fn stream_turn_json(
+pub async fn generate_turn_json_stream(
     config: &ModelProviderConfig,
-    prompt: &str,
-    on_piece: &mut (dyn FnMut(TurnJsonStreamPiece) -> Result<(), String> + Send),
-) -> Result<String, String> {
+    system_prompt: &str,
+    context_prompt: &str,
+) -> Result<impl Stream<Item = Result<TurnJsonStreamPiece, String>> + '_ , String> {
     let client = build_client(config)?;
-    let req = ChatRequest::from_user(prompt).with_system(
-        "你是中文 RPG 回合引擎。你必须只输出一个 JSON 对象，不要输出 markdown、代码块或解释。",
-    );
-    let options = build_turn_chat_options(config);
-    let mut stream_res = client
-        .exec_chat_stream(&config.model, req, Some(&options))
+    let chat_options = build_turn_chat_options(config);
+
+    let req = ChatRequest::new(vec![
+        system_prompt.into(),
+        context_prompt.into(),
+    ]);
+
+    let mut stream = client
+        .exec_chat_stream(&config.model, req, Some(&chat_options))
         .await
         .map_err(|e| {
             eprintln!(
-                "[llm] turn json stream start failed model={} baseUrl={} err={:?}",
+                "[llm] generate_turn_json_stream failed model={} baseUrl={} err={:?}",
                 config.model, config.base_url, e
             );
-            format!("genai 回合 JSON 流式启动失败: {e}")
+            format!("genai 流式调用失败: {e}")
         })?;
 
-    let mut out = String::new();
-    while let Some(event) = stream_res.stream.next().await {
-        let event = event.map_err(|e| format!("genai 回合 JSON 流式事件错误: {e}"))?;
-        match event {
-            ChatStreamEvent::Chunk(chunk) => {
-                out.push_str(&chunk.content);
-                on_piece(TurnJsonStreamPiece::Content(chunk.content))?;
-            }
-            ChatStreamEvent::ReasoningChunk(chunk) => {
-                let reasoning = chunk.content;
-                if !reasoning.is_empty() {
-                    on_piece(TurnJsonStreamPiece::Reasoning(reasoning))?;
+    Ok(async_stream::stream! {
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok(ChatStreamEvent::Content { text, .. }) => {
+                    if !text.is_empty() {
+                        yield Ok(TurnJsonStreamPiece::Content(text));
+                    }
                 }
+                Ok(ChatStreamEvent::ReasoningContent { text, .. }) => {
+                    if !text.is_empty() {
+                        yield Ok(TurnJsonStreamPiece::Reasoning(text));
+                    }
+                }
+                Ok(ChatStreamEvent::Done) => break,
+                Err(e) => {
+                    yield Err(format!("流式响应错误: {e}"));
+                    break;
+                }
+                _ => {}
             }
-            _ => {}
         }
-    }
-    // eprintln!(
-    //     "[llm] turn json stream completed chunks={} totalChars={}",
-    //     chunk_count,
-    //     out.chars().count()
-    // );
-    let text = out.trim().to_string();
-    if text.is_empty() {
-        return Err("模型流式返回了空内容".to_string());
-    }
-    Ok(text)
+    })
 }
 
 pub async fn generate_world_card_json(
     config: &ModelProviderConfig,
+    system_prompt: &str,
     user_prompt: &str,
 ) -> Result<String, String> {
     let client = build_client(config)?;
-    eprintln!(
-        "[llm] world-card request model={} baseUrl={} promptLen={}",
-        config.model,
-        config.base_url,
-        user_prompt.chars().count()
-    );
-    let system_prompt = "你是 RPG 世界卡设计器。你必须只输出一个合法 JSON 对象，不要输出 markdown、代码块标记或任何解释文本。\
-JSON 必须符合 RoleClaw WorldCard v2（camelCase）：\
-id,name,schemaVersion,contentVersion,worldbook,map,npcs,events,chapterGoals。\
-地图边是无向边，a/b 必须引用有效节点，startNodeId 必须存在。\
-npcs 每项字段仅: id,name,personality(string[]),identity。\
-events 每项字段仅: id,name,prompt。\
-chapterGoals 每项字段仅: id,title,prompt。\
-x/y 为数字，canvas 必须包含 width,height。";
-    let req = ChatRequest::from_user(user_prompt).with_system(system_prompt);
     let options = ChatOptions::default()
         .with_temperature(config.temperature as f64)
         .with_max_tokens(configured_max_tokens(
@@ -250,73 +431,74 @@ x/y 为数字，canvas 必须包含 width,height。";
             WORLD_CARD_MAX_TOKENS,
             WORLD_CARD_MAX_TOKENS,
         ));
+
+    let req = ChatRequest::new(vec![system_prompt.into(), user_prompt.into()]);
+
     let chat_res = client
         .exec_chat(&config.model, req, Some(&options))
         .await
         .map_err(|e| {
             eprintln!(
-                "[llm] world-card failed model={} baseUrl={} err={:?}",
-                config.model, config.base_url, e
+                "[llm] generate_world_card_json failed model={} err={:?}",
+                config.model, e
             );
-            format!("genai 世界卡生成失败: {e}")
+            format!("生成世界卡失败: {e}")
         })?;
-    let text = chat_res.first_text().unwrap_or("").trim().to_string();
-    if text.is_empty() {
-        return Err("模型返回了空内容".to_string());
-    }
+
+    let text = chat_res
+        .first_text()
+        .ok_or_else(|| "模型返回为空".to_string())?;
     Ok(text)
 }
 
-pub async fn stream_world_card_json(
+pub async fn generate_world_card_json_stream(
     config: &ModelProviderConfig,
+    system_prompt: &str,
     user_prompt: &str,
-    on_chunk: &mut (dyn FnMut(&str) -> Result<(), String> + Send),
-) -> Result<String, String> {
+) -> Result<impl Stream<Item = Result<String, String>> + '_ , String> {
     let client = build_client(config)?;
-    eprintln!(
-        "[llm] world-card stream request model={} baseUrl={} promptLen={}",
-        config.model,
-        config.base_url,
-        user_prompt.chars().count()
-    );
-    let system_prompt = "你是 RPG 世界卡设计器。你必须只输出一个合法 JSON 对象，不要输出 markdown、代码块标记或任何解释文本。\
-JSON 必须符合 RoleClaw WorldCard v2（camelCase）：\
-id,name,schemaVersion,contentVersion,worldbook,map,npcs,events,chapterGoals。\
-地图边是无向边，a/b 必须引用有效节点，startNodeId 必须存在。\
-npcs 每项字段仅: id,name,personality(string[]),identity。\
-events 每项字段仅: id,name,prompt。\
-chapterGoals 每项字段仅: id,title,prompt。\
-x/y 为数字，canvas 必须包含 width,height。";
-    let req = ChatRequest::from_user(user_prompt).with_system(system_prompt);
     let options = ChatOptions::default()
         .with_temperature(config.temperature as f64)
         .with_max_tokens(configured_max_tokens(
             config,
             WORLD_CARD_MAX_TOKENS,
             WORLD_CARD_MAX_TOKENS,
-        ));
-    let mut stream_res = client
+        ))
+        .with_capture_reasoning_content(true);
+
+    let req = ChatRequest::new(vec![system_prompt.into(), user_prompt.into()]);
+
+    let mut stream = client
         .exec_chat_stream(&config.model, req, Some(&options))
         .await
         .map_err(|e| {
             eprintln!(
-                "[llm] world-card stream start failed model={} baseUrl={} err={:?}",
-                config.model, config.base_url, e
+                "[llm] generate_world_card_json_stream failed model={} err={:?}",
+                config.model, e
             );
-            format!("genai 世界卡流式生成启动失败: {e}")
+            format!("生成世界卡失败: {e}")
         })?;
 
-    let mut out = String::new();
-    while let Some(event) = stream_res.stream.next().await {
-        let event = event.map_err(|e| format!("genai 世界卡流式事件错误: {e}"))?;
-        if let ChatStreamEvent::Chunk(chunk) = event {
-            out.push_str(&chunk.content);
-            on_chunk(&chunk.content)?;
+    Ok(async_stream::stream! {
+        let mut content = String::new();
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok(ChatStreamEvent::Content { text, .. }) => {
+                    content.push_str(&text);
+                    yield Ok(text);
+                }
+                Ok(ChatStreamEvent::ReasoningContent { text, .. }) => {
+                    // 思考过程不输出给用户
+                    eprint!("[world-card reasoning] {}", text);
+                }
+                Ok(ChatStreamEvent::Done) => break,
+                Err(e) => {
+                    yield Err(format!("流式响应错误: {e}"));
+                    break;
+                }
+                _ => {}
+            }
         }
-    }
-    let text = out.trim().to_string();
-    if text.is_empty() {
-        return Err("模型流式返回了空内容".to_string());
-    }
-    Ok(text)
+        eprintln!("[world-card] Total content length: {}", content.len());
+    })
 }

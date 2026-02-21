@@ -1,0 +1,230 @@
+{
+  "presets": [
+    {
+      "id": "openai-gpt4o",
+      "name": "OpenAI GPT-4o",
+      "providerType": "openai",
+      "provider": "OpenAI",
+      "baseUrl": "https://api.openai.com/v1",
+      "model": "gpt-4o",
+      "description": "OpenAI 最新旗舰模型，支持文本、图像输入",
+      "supportsVision": true,
+      "supportsJson": true
+    },
+    {
+      "id": "openai-gpt4o-mini",
+      "name": "OpenAI GPT-4o Mini",
+      "providerType": "openai",
+      "provider": "OpenAI",
+      "baseUrl": "https://api.openai.com/v1",
+      "model": "gpt-4o-mini",
+      "description": "性价比最高的 GPT-4 模型",
+      "supportsVision": false,
+      "supportsJson": true
+    },
+    {
+      "id": "openai-o1",
+      "name": "OpenAI o1",
+      "providerType": "openai",
+      "provider": "OpenAI",
+      "baseUrl": "https://api.openai.com/v1",
+      "model": "o1",
+      "description": "OpenAI 推理模型，擅长复杂推理任务",
+      "supportsVision": false,
+      "supportsJson": false
+    },
+    {
+      "id": "anthropic-claude-sonnet",
+      "name": "Claude Sonnet 4",
+      "providerType": "anthropic",
+      "provider": "Anthropic",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "model": "claude-sonnet-4-20250514",
+      "description": "Anthropic 最新旗舰模型，性价比与能力平衡",
+      "supportsVision": true,
+      "supportsJson": true
+    },
+    {
+      "id": "anthropic-claude-opus",
+      "name": "Claude Opus 4",
+      "providerType": "anthropic",
+      "provider": "Anthropic",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "model": "claude-3-opus-20240229",
+      "description": "Anthropic 最强模型，适合复杂任务",
+      "supportsVision": true,
+      "supportsJson": true
+    },
+    {
+      "id": "google-gemini-2-flash",
+      "name": "Google Gemini 2.0 Flash",
+      "providerType": "google",
+      "provider": "Google",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1",
+      "model": "gemini-2.0-flash-exp",
+      "description": "Google 最新快速响应模型",
+      "supportsVision": true,
+      "supportsJson": true
+    },
+    {
+      "id": "google-gemini-1.5-pro",
+      "name": "Google Gemini 1.5 Pro",
+      "providerType": "google",
+      "provider": "Google",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1",
+      "model": "gemini-1.5-pro",
+      "description": "Google 长上下文模型，支持 200 万 token",
+      "supportsVision": true,
+      "supportsJson": true
+    },
+    {
+      "id": "groq-llama-3.3",
+      "name": "Groq Llama 3.3 70B",
+      "providerType": "groq",
+      "provider": "Groq",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "model": "llama-3.3-70b-versatile",
+      "description": "Groq 超快速 Llama 模型",
+      "supportsVision": false,
+      "supportsJson": true
+    },
+    {
+      "id": "ollama-llama3.3",
+      "name": "Ollama Llama 3.3",
+      "providerType": "ollama",
+      "provider": "Ollama",
+      "baseUrl": "http://localhost:11434",
+      "model": "llama3.3",
+      "description": "本地运行的 Llama 3.3 模型",
+      "supportsVision": false,
+      "supportsJson": false,
+      "requiresApiKey": false
+    },
+    {
+      "id": "ollama-qwen2.5",
+      "name": "Ollama Qwen 2.5",
+      "providerType": "ollama",
+      "provider": "Ollama",
+      "baseUrl": "http://localhost:11434",
+      "model": "qwen2.5",
+      "description": "本地运行的阿里 Qwen 2.5 模型",
+      "supportsVision": false,
+      "supportsJson": false,
+      "requiresApiKey": false
+    },
+    {
+      "id": "ollama-deepseek-r1",
+      "name": "Ollama DeepSeek R1",
+      "providerType": "ollama",
+      "provider": "Ollama",
+      "baseUrl": "http://localhost:11434",
+      "model": "deepseek-r1",
+      "description": "本地运行的 DeepSeek R1 推理模型",
+      "supportsVision": false,
+      "supportsJson": false,
+      "requiresApiKey": false
+    },
+    {
+      "id": "mistral-mistral-large",
+      "name": "Mistral Large",
+      "providerType": "mistral",
+      "provider": "Mistral AI",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "model": "mistral-large-latest",
+      "description": "Mistral AI 旗舰模型",
+      "supportsVision": false,
+      "supportsJson": true
+    },
+    {
+      "id": "cohere-command-r-plus",
+      "name": "Cohere Command R+",
+      "providerType": "cohere",
+      "provider": "Cohere",
+      "baseUrl": "https://api.cohere.ai/v1",
+      "model": "command-r-plus",
+      "description": "Cohere 企业级对话模型",
+      "supportsVision": false,
+      "supportsJson": true
+    }
+  ],
+  "customProviders": [
+    {
+      "id": "custom-openai-compatible",
+      "name": "自定义 OpenAI 兼容 API",
+      "providerType": "custom",
+      "description": "适用于第三方 OpenAI 兼容 API（如 One API、New API 等）",
+      "fields": [
+        {
+          "name": "baseUrl",
+          "label": "API 地址",
+          "type": "text",
+          "placeholder": "https://your-api.com/v1",
+          "required": true
+        },
+        {
+          "name": "model",
+          "label": "模型名称",
+          "type": "text",
+          "placeholder": "gpt-4o",
+          "required": true
+        },
+        {
+          "name": "apiKey",
+          "label": "API Key",
+          "type": "password",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "custom-azure-openai",
+      "name": "Azure OpenAI",
+      "providerType": "azure",
+      "description": "微软 Azure OpenAI 服务",
+      "fields": [
+        {
+          "name": "baseUrl",
+          "label": "端点地址",
+          "type": "text",
+          "placeholder": "https://xxx.openai.azure.com",
+          "required": true
+        },
+        {
+          "name": "model",
+          "label": "部署名称",
+          "type": "text",
+          "placeholder": "gpt-4o",
+          "required": true
+        },
+        {
+          "name": "apiKey",
+          "label": "API Key",
+          "type": "password",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "custom-local-ollama",
+      "name": "本地 Ollama",
+      "providerType": "ollama",
+      "description": "本地部署的 Ollama 服务",
+      "fields": [
+        {
+          "name": "baseUrl",
+          "label": "服务地址",
+          "type": "text",
+          "default": "http://localhost:11434",
+          "required": true
+        },
+        {
+          "name": "model",
+          "label": "模型名称",
+          "type": "text",
+          "placeholder": "llama3.3",
+          "required": true
+        }
+      ]
+    }
+  ]
+}
