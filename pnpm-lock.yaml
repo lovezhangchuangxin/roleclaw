@@ -29,6 +29,9 @@ importers:
       lucide-vue-next:
         specifier: ^0.575.0
         version: 0.575.0(vue@3.5.28(typescript@5.6.3))
+      partial-json:
+        specifier: ^0.1.7
+        version: 0.1.7
       reka-ui:
         specifier: ^2.8.2
         version: 2.8.2(vue@3.5.28(typescript@5.6.3))
@@ -821,6 +824,9 @@ packages:
   ohash@2.0.11:
     resolution: {integrity: sha512-RdR9FQrFwNBNXAr4GixM8YaRZRJ5PUWbKYbE5eOsrwAjJW0q2REGcf79oYPsLyskQCZG1PLN+S/K1V00joZAoQ==}
 
+  partial-json@0.1.7:
+    resolution: {integrity: sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA==}
+
   path-browserify@1.0.1:
     resolution: {integrity: sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==}
 
@@ -1545,6 +1551,8 @@ snapshots:
   nanoid@3.3.11: {}
 
   ohash@2.0.11: {}
+
+  partial-json@0.1.7: {}
 
   path-browserify@1.0.1: {}
 

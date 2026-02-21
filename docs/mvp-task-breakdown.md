@@ -32,6 +32,20 @@
 
 ## 2. 工作分解结构（WBS）
 
+### 2.0 世界卡 V2 重构（新增）
+
+1. `ENG-007` WorldCard V2 Schema
+- 内容：将世界卡升级为 `worldbook/map/npcs/events/gameplay`，仅支持 `schemaVersion=2.x.x`。
+- 验收：导入旧版卡返回明确错误，字段级校验可定位。
+
+2. `FE-011` 地图画布编辑器
+- 内容：地点节点拖拽、双向连线、删点删边、设置起始节点。
+- 验收：保存后重开坐标与连线保持一致。
+
+3. `BE-012` V2 投影生成
+- 内容：`generate_world/create_save` 按 V2 地图与 NPC 投影到 snapshot `locations/paths/events`。
+- 验收：新存档地图与编辑器画布一致。
+
 ## 2.1 前端（Vue3 + shadcn/vue）
 
 1. `FE-001` 项目骨架与路由
@@ -263,4 +277,3 @@
 - 任务拆解：`/Users/keqing/Desktop/projects/codes/roleclaw/docs/mvp-task-breakdown.md`
 - Schema：`/Users/keqing/Desktop/projects/codes/roleclaw/docs/data-schemas.md`
 - Prompt 规范：`/Users/keqing/Desktop/projects/codes/roleclaw/docs/prompt-spec.md`
-

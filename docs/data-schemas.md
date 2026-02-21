@@ -39,7 +39,12 @@
 
 ---
 
-## 3. WorldCard Schema
+## 3. WorldCard Schema（V2）
+
+说明：
+1. 当前实现仅支持 `schemaVersion` 为 `2.x.x`。
+2. `v1` 世界卡（`genre/tone/locationPool/archetypePool`）不再兼容。
+3. 地图坐标 `map.nodes[].x/y` 由画布编辑器生成与维护，不要求用户手填。
 
 ## 3.1 数据模型（逻辑）
 
@@ -49,19 +54,30 @@
   "name": "破碎王座",
   "schemaVersion": "1.0.0",
   "contentVersion": 3,
-  "genre": "fantasy",
-  "tone": "epic-dark",
-  "rules": [],
-  "factions": [],
-  "locationPool": [],
-  "archetypePool": [],
-  "seedHints": {
-    "mainQuestHooks": [],
-    "sideQuestHooks": []
+  "worldbook": {
+    "title": "破碎王座",
+    "overview": "王都权力崩裂，三议会与流亡王室对峙",
+    "background": "旧王朝覆灭后，王都进入长夜重建期",
+    "coreConflicts": ["王权继承", "禁忌魔法复燃"],
+    "playStyle": "悬疑探索 + 阵营抉择"
   },
-  "safetyPolicy": {
-    "bannedTopics": [],
-    "styleConstraints": []
+  "map": {
+    "nodes": [],
+    "edges": [],
+    "startNodeId": "loc_gate",
+    "canvas": {
+      "width": 900,
+      "height": 560
+    }
+  },
+  "npcs": [],
+  "events": [],
+  "gameplay": {
+    "mainLoop": [],
+    "chapterGoals": [],
+    "failureConditions": [],
+    "rewardRhythm": "",
+    "pacingHints": []
   }
 }
 ```
@@ -221,8 +237,11 @@
   "worldCardId": "fantasy_001",
   "currentTurn": 1,
   "playerRole": "失忆骑士",
+  "modelProfileId": "model_001",
   "provider": "openai",
-  "model": "gpt-4.1"
+  "model": "gpt-4.1",
+  "parentSaveId": "save_20260220_010",
+  "forkedFromTurn": 35
 }
 ```
 
@@ -230,7 +249,8 @@
 
 1. `id` 唯一，目录名与字段一致。
 2. `updatedAt` 每回合成功后更新。
-3. `provider` 仅允许 `openai | claude`。
+3. `provider` 建议值：`openai | claude | openai_compatible`。
+4. 分叉存档时 `parentSaveId/forkedFromTurn` 必须同时存在。
 
 ---
 
@@ -241,37 +261,23 @@
   "saveId": "save_20260221_001",
   "turn": 12,
   "currentLocationId": "loc_town_square",
-  "playerState": {
-    "identity": "失忆骑士",
-    "tags": ["injured", "wanted"],
-    "flags": {
-      "met_queen": true
-    }
-  },
-  "worldState": {
-    "locations": [],
-    "paths": [],
-    "quests": [],
-    "variables": {
-      "threat_level": 35
-    }
+  "playerRole": "失忆骑士",
+  "locations": [],
+  "paths": [],
+  "quests": [],
+  "worldVariables": {
+    "threat_level": 35
   },
   "relationships": {
     "npc_mira": 42,
     "npc_guard_captain": -15
   },
-  "modelConfig": {
-    "provider": "openai",
-    "model": "gpt-4.1",
-    "temperature": 0.7,
-    "maxTokens": 900,
-    "timeoutMs": 25000
-  },
-  "memory": {
-    "shortTerm": [],
-    "midTermSummary": "",
-    "factLocks": []
-  },
+  "modelProfileId": "model_001",
+  "modelLabel": "openai/gpt-4.1",
+  "events": [],
+  "shortTermMemory": [],
+  "midTermSummary": "",
+  "factLocks": [],
   "activeEventIds": []
 }
 ```
@@ -280,7 +286,8 @@
 
 1. `turn` 非负整数。
 2. `relationships` 取值范围建议 `[-100, 100]`。
-3. `memory.factLocks` 必须为可验证事实句，禁止模糊推测语句。
+3. `factLocks` 必须为可验证事实句，禁止模糊推测语句。
+4. `events` 为事件引擎可执行事件定义集合。
 
 ---
 
@@ -304,15 +311,13 @@
       { "id": "opt_risk_1", "kind": "risk", "text": "趁混乱闯入内城" }
     ],
     "stateChangesPreview": ["与守卫长关系 +8"],
-    "eventHints": ["可能触发：旧王室线索"]
+    "eventHints": ["可能触发：旧王室线索"],
+    "triggeredEventIds": ["evt_gate_badge_check"],
+    "stateDiff": {
+      "relationships.npc_guard_captain": { "from": -15, "to": -7 }
+    }
   },
-  "eventTrace": {
-    "triggered": ["evt_gate_badge_check"],
-    "failed": [],
-    "actionsApplied": [
-      { "type": "update_relationship", "target": "npc_guard_captain", "delta": 8 }
-    ]
-  },
+  "triggeredEventIds": ["evt_gate_badge_check"],
   "stateDiff": {
     "relationships.npc_guard_captain": { "from": -15, "to": -7 }
   }
@@ -421,4 +426,3 @@
 5. `WORLD_CARD_DUPLICATE_ID`
 6. `EVENT_ACTION_INVALID_PARAMS`
 7. `MODEL_CONFIG_INVALID`
-

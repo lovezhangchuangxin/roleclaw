@@ -1,5 +1,5 @@
 <template>
-  <div class="app-root min-h-screen p-6">
+  <div class="app-root min-h-screen p-6" :style="appStyleVars">
     <div v-if="view === 'menu'" class="start-screen">
       <div class="start-stack">
         <div class="start-title-wrap">
@@ -17,6 +17,7 @@
           <p class="text-sm game-text-muted">叙事驱动 · 世界卡生成 · 3+1 对话</p>
         </div>
         <div class="flex gap-2">
+          <button v-if="activeSave" class="btn" @click="openReplayView">回放/分叉</button>
           <button class="btn" @click="setView('menu')">主菜单</button>
           <button class="btn" @click="refreshHome">刷新</button>
         </div>
@@ -42,19 +43,29 @@
           </label>
           <label class="field md:col-span-2">
             <span>世界卡</span>
-            <select v-model="newSave.worldCardId" class="input">
-              <option v-for="card in worldCards" :key="card.id" :value="card.id">
-                {{ card.name }} ({{ card.genre }} / {{ card.tone }})
-              </option>
-            </select>
+            <Select v-model="newSave.worldCardId">
+              <SelectTrigger class="w-full settings-select-trigger">
+                <SelectValue placeholder="选择世界卡" />
+              </SelectTrigger>
+              <SelectContent class="settings-select-content">
+                <SelectItem v-for="card in worldCards" :key="card.id" :value="card.id" class="settings-select-item">
+                  {{ card.name }} ({{ card.worldbook.playStyle }})
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="field md:col-span-2">
             <span>AI模型</span>
-            <select v-model="newSave.modelProfileId" class="input">
-              <option v-for="model in aiModels" :key="model.id" :value="model.id">
-                {{ model.provider }}/{{ model.model }}
-              </option>
-            </select>
+            <Select v-model="newSave.modelProfileId">
+              <SelectTrigger class="w-full settings-select-trigger">
+                <SelectValue placeholder="选择AI模型" />
+              </SelectTrigger>
+              <SelectContent class="settings-select-content">
+                <SelectItem v-for="model in aiModels" :key="model.id" :value="model.id" class="settings-select-item">
+                  {{ model.provider }}/{{ model.model }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
         </div>
         <div class="mt-4 flex gap-2">
@@ -86,7 +97,7 @@
 
       <section v-if="view === 'ai-settings'" class="panel w-full ai-settings-panel">
         <h2 class="panel-title">AI设置</h2>
-        <p class="text-sm game-text-muted">当前协议类型仅支持 OpenAI Compatible。</p>
+        <p class="text-sm game-text-muted">当前仅支持 OpenAI Compatible 协议配置。</p>
 
         <div class="ai-layout mt-4">
           <div class="ai-block">
@@ -97,7 +108,14 @@
             <div class="grid gap-4 md:grid-cols-2">
               <label class="field">
                 <span>协议类型</span>
-                <input class="input" value="OpenAI Compatible" disabled />
+                <Select v-model="aiDraft.providerType">
+                  <SelectTrigger class="w-full settings-select-trigger">
+                    <SelectValue placeholder="选择协议" />
+                  </SelectTrigger>
+                  <SelectContent class="settings-select-content">
+                    <SelectItem value="openai_compatible" class="settings-select-item">OpenAI Compatible</SelectItem>
+                  </SelectContent>
+                </Select>
               </label>
               <label class="field">
                 <span>Provider 名称</span>
@@ -213,6 +231,35 @@
                 </SelectContent>
               </Select>
             </label>
+
+            <label class="field">
+              <span>字体缩放</span>
+              <input v-model.number="gameSettings.fontScale" class="input" type="range" min="0.9" max="1.35"
+                step="0.05" />
+              <small class="text-xs game-text-muted">{{ gameSettings.fontScale.toFixed(2) }}x</small>
+            </label>
+
+            <label class="field">
+              <span>界面缩放</span>
+              <input v-model.number="gameSettings.uiZoom" class="input" type="range" min="0.9" max="1.2"
+                step="0.05" />
+              <small class="text-xs game-text-muted">{{ gameSettings.uiZoom.toFixed(2) }}x</small>
+            </label>
+
+            <label class="field">
+              <span>日志级别</span>
+              <Select v-model="gameSettings.logLevel">
+                <SelectTrigger class="w-full settings-select-trigger">
+                  <SelectValue placeholder="选择日志级别" />
+                </SelectTrigger>
+                <SelectContent class="settings-select-content">
+                  <SelectItem value="error" class="settings-select-item">错误</SelectItem>
+                  <SelectItem value="warn" class="settings-select-item">警告</SelectItem>
+                  <SelectItem value="info" class="settings-select-item">信息</SelectItem>
+                  <SelectItem value="debug" class="settings-select-item">调试</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
           </div>
 
           <div class="theme-preview-grid">
@@ -245,11 +292,66 @@
         </div>
       </section>
 
-      <section v-if="view === 'cards'">
+      <section v-if="view === 'cards'" class="w-full">
         <WorldCardManager :world-cards="worldCards" :card-import-text="cardImportText"
-          :card-export-path="cardExportPath" @update:card-import-text="cardImportText = $event"
-          @update:card-export-path="cardExportPath = $event" @import-card="importCardFromText"
-          @export-card="exportCard" />
+          :card-export-path="cardExportPath" :ai-world-card-prompt="aiWorldCardPrompt"
+          :ai-world-card-generating="aiWorldCardGenerating" :ai-generated-card="aiGeneratedWorldCard"
+          :ai-world-card-stream-text="aiWorldCardStreamText" :ai-world-card-stream-parsed-ok="aiWorldCardStreamParsedOk"
+          @update:card-import-text="cardImportText = $event" @update:card-export-path="cardExportPath = $event"
+          @update:ai-world-card-prompt="aiWorldCardPrompt = $event" @import-card="importCardFromText"
+          @export-card="exportCard" @duplicate-card="duplicateCard" @save-edited-card="saveEditedCard"
+          @generate-card-by-ai="generateCardDraftWithAi" />
+      </section>
+
+      <section v-if="view === 'replay' && activeSave" class="panel max-w-6xl">
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <h2 class="panel-title mb-1">回放与分叉</h2>
+            <p class="text-xs game-text-muted">存档 {{ activeSave.meta.name }} · 当前回合 {{ activeSave.snapshot.turn }}</p>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn" @click="setView('game')">返回游戏</button>
+            <button class="btn" @click="refreshReplayData">刷新回放</button>
+            <button class="btn" :disabled="!replayHasMore || replayLoading" @click="loadReplayTimeline(false)">
+              {{ replayLoading ? "加载中..." : replayHasMore ? "加载更多历史" : "已到底" }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="replayResult" class="mb-3 rounded border p-2 text-xs">
+          <p>日志末回合：{{ replayResult.consistency.logLastTurn }} · 快照回合：{{ replayResult.consistency.snapshotTurn }}</p>
+          <p>
+            一致性：
+            <b :class="replayResult.consistency.matchesSnapshot ? 'text-emerald-600' : 'text-red-600'">
+              {{ replayResult.consistency.matchesSnapshot ? "通过" : "不一致" }}
+            </b>
+            · 单调递增：{{ replayResult.consistency.isMonotonic ? "是" : "否" }}
+          </p>
+          <ul v-if="replayResult.consistency.warnings.length" class="mt-1 list-disc pl-5">
+            <li v-for="warning in replayResult.consistency.warnings" :key="warning">{{ warning }}</li>
+          </ul>
+        </div>
+
+        <div class="grid gap-3 lg:grid-cols-[1fr_1.5fr]">
+          <div class="max-h-[440px] overflow-auto space-y-2 pr-1">
+            <button v-for="item in replayPreview" :key="item.turn" class="w-full rounded border p-2 text-left"
+              :class="replaySelectedTurn === item.turn ? 'replay-item-active' : ''" @click="replaySelectedTurn = item.turn">
+              <p class="text-xs font-medium">T{{ item.turn }}</p>
+              <p class="text-xs game-text-muted truncate">{{ item.output?.stateChangesPreview?.join(" / ") || "无摘要" }}</p>
+            </button>
+          </div>
+
+          <div class="rounded border p-3" v-if="selectedReplayItem">
+            <h3 class="font-medium">回合 T{{ selectedReplayItem.turn }}</h3>
+            <p class="mt-2 text-xs"><b>输入：</b>{{ selectedReplayItem.input.customText || selectedReplayItem.input.optionId || "无" }}</p>
+            <p class="mt-2 text-xs"><b>叙事：</b>{{ selectedReplayItem.output.narration }}</p>
+            <p class="mt-2 text-xs"><b>状态变化：</b>{{ selectedReplayItem.output.stateChangesPreview.join(" / ") || "无" }}</p>
+            <p class="mt-2 text-xs"><b>事件：</b>{{ selectedReplayItem.triggeredEventIds.join(", ") || "无" }}</p>
+            <div class="mt-3 flex gap-2">
+              <button class="btn btn-primary" @click="forkAtTurn(selectedReplayItem.turn)">从该回合分叉</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section v-if="view === 'game' && activeSave" class="grid gap-4 lg:grid-cols-[1.2fr_1.8fr_1fr]">
@@ -285,6 +387,37 @@
           <ul class="mt-2 list-disc pl-5 text-sm">
             <li v-for="line in stateChanges" :key="line">{{ line }}</li>
           </ul>
+
+          <h3 class="mt-4 font-medium">任务进度</h3>
+          <ul class="mt-2 space-y-1 text-xs">
+            <li v-for="quest in activeSave.snapshot.quests" :key="quest.id" class="rounded border px-2 py-1">
+              {{ quest.title }} · 阶段 {{ quest.stage }} · {{ quest.completed ? "已完成" : "进行中" }}
+            </li>
+            <li v-if="activeSave.snapshot.quests.length === 0" class="game-text-muted">暂无任务</li>
+          </ul>
+
+          <h3 class="mt-4 font-medium">关系矩阵</h3>
+          <ul class="mt-2 space-y-1 text-xs">
+            <li v-for="entry in relationshipEntries" :key="entry.id" class="rounded border px-2 py-1">
+              {{ entry.id }}: {{ entry.value }}
+            </li>
+            <li v-if="relationshipEntries.length === 0" class="game-text-muted">暂无关系记录</li>
+          </ul>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button class="btn" @click="openReplayView">打开回放页</button>
+            <button class="btn btn-primary" @click="forkActiveSave">从当前回合分叉</button>
+          </div>
+          <ul v-if="replayPreview.length > 0" class="mt-3 space-y-1 text-xs">
+            <li v-for="item in replayPreview" :key="item.turn" class="rounded border px-2 py-1">
+              T{{ item.turn }} · {{ item.output?.stateChangesPreview?.join(" / ") || "无摘要" }}
+            </li>
+          </ul>
+
+          <div v-if="gameSettings.logLevel === 'debug'" class="mt-3 rounded border p-2 text-xs">
+            <p class="font-medium mb-1">调试状态</p>
+            <pre class="overflow-auto">{{ JSON.stringify(activeSave.snapshot.worldVariables, null, 2) }}</pre>
+          </div>
         </div>
       </section>
 
@@ -298,7 +431,7 @@
 
 <script setup lang="ts">
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import GameMapCanvas from "@/components/game/GameMapCanvas.vue";
 import GameSettingsMenu from "@/components/game/GameSettingsMenu.vue";
 import WorldCardManager from "@/components/game/WorldCardManager.vue";
@@ -316,6 +449,16 @@ const {
   customInput,
   cardImportText,
   cardExportPath,
+  aiWorldCardPrompt,
+  aiWorldCardGenerating,
+  aiGeneratedWorldCard,
+  aiWorldCardStreamText,
+  aiWorldCardStreamParsedOk,
+  replayPreview,
+  replayResult,
+  replaySelectedTurn,
+  replayHasMore,
+  replayLoading,
   saves,
   worldCards,
   activeSave,
@@ -343,6 +486,14 @@ const {
   move,
   importCardFromText,
   exportCard,
+  duplicateCard,
+  saveEditedCard,
+  generateCardDraftWithAi,
+  loadReplayTimeline,
+  refreshReplayData,
+  openReplayView,
+  forkAtTurn,
+  forkActiveSave,
 } = useGameApp();
 
 const showInGameMenu = ref(false);
@@ -358,6 +509,25 @@ const speedOptions = [
   { value: "normal", label: "中" },
   { value: "fast", label: "快" },
 ] as const;
+const relationshipEntries = computed(() => {
+  if (!activeSave.value) {
+    return [];
+  }
+  return Object.entries(activeSave.value.snapshot.relationships).map(([id, value]) => ({
+    id,
+    value: typeof value === "number" ? value.toFixed(1) : String(value),
+  }));
+});
+const selectedReplayItem = computed(() => {
+  if (replaySelectedTurn.value == null) {
+    return replayPreview.value[replayPreview.value.length - 1] ?? null;
+  }
+  return replayPreview.value.find((item) => item.turn === replaySelectedTurn.value) ?? null;
+});
+const appStyleVars = computed<Record<string, string>>(() => ({
+  "--game-font-scale": String(gameSettings.value.fontScale ?? 1),
+  "--game-ui-zoom": String(gameSettings.value.uiZoom ?? 1),
+}));
 
 function handleMenuSelect(action: "start" | "saves" | "ai" | "cards" | "settings" | "exit") {
   if (action === "exit") {
@@ -459,6 +629,8 @@ onBeforeUnmount(() => {
 .app-root {
   background-color: var(--game-page-bg);
   color: var(--game-btn-text);
+  font-size: calc(16px * var(--game-font-scale, 1));
+  zoom: var(--game-ui-zoom, 1);
   background:
     radial-gradient(circle at 10% 0%, var(--game-bg-layer-1), transparent 28%),
     radial-gradient(circle at 90% 90%, var(--game-bg-layer-2), transparent 30%);
@@ -616,6 +788,11 @@ onBeforeUnmount(() => {
 
 .btn:hover {
   background: var(--game-btn-hover-bg);
+}
+
+.replay-item-active {
+  border-color: var(--game-btn-primary-bg);
+  box-shadow: 0 0 0 1px var(--game-btn-primary-bg);
 }
 
 .btn:disabled {

@@ -7,6 +7,8 @@ import type {
   CreateSaveConfig,
   GlobalGameData,
   MoveResult,
+  EventLogPage,
+  ReplayResult,
   SaveBundle,
   SaveMeta,
   TurnInput,
@@ -56,6 +58,12 @@ interface TurnStreamEventPayload {
   chunk?: string;
 }
 
+interface WorldCardStreamEventPayload {
+  streamId: string;
+  phase: TurnStreamPhase;
+  chunk?: string;
+}
+
 function newStreamId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -93,6 +101,28 @@ export async function moveToLocation(
   locationId: string,
 ): Promise<MoveResult> {
   return invoke("move_to_location", { saveId, locationId });
+}
+
+export async function listEvents(
+  saveId: string,
+  cursor?: number,
+): Promise<EventLogPage> {
+  return invoke("list_events", { saveId, cursor });
+}
+
+export async function replaySave(
+  saveId: string,
+  untilTurn?: number,
+): Promise<ReplayResult> {
+  return invoke("replay_save", { saveId, untilTurn });
+}
+
+export async function forkSave(
+  saveId: string,
+  fromTurn: number,
+  newName: string,
+): Promise<SaveMeta> {
+  return invoke("fork_save", { saveId, fromTurn, newName });
 }
 
 export async function listAiModels(): Promise<AiSettings> {
@@ -138,4 +168,48 @@ export async function updateGlobalGameData(
   data: GlobalGameData,
 ): Promise<GlobalGameData> {
   return invoke("update_global_game_data", { data });
+}
+
+export async function generateWorldCardWithAi(
+  prompt: string,
+  modelProfileId?: string,
+): Promise<WorldCard> {
+  return invoke("generate_world_card_with_ai", {
+    input: {
+      prompt,
+      modelProfileId,
+    },
+  });
+}
+
+export async function generateWorldCardWithAiStream(
+  prompt: string,
+  onChunk: (chunk: string) => void,
+  modelProfileId?: string,
+): Promise<WorldCard> {
+  const streamId = newStreamId();
+  const unlisten = await listen<WorldCardStreamEventPayload>(
+    "world_card_stream_chunk",
+    (event) => {
+      const payload = event.payload;
+      if (!payload || payload.streamId !== streamId) {
+        return;
+      }
+      if (payload.phase === "chunk" && payload.chunk) {
+        onChunk(payload.chunk);
+      }
+    },
+  );
+
+  try {
+    return await invoke("generate_world_card_with_ai_stream", {
+      input: {
+        prompt,
+        modelProfileId,
+      },
+      streamId,
+    });
+  } finally {
+    unlisten();
+  }
 }

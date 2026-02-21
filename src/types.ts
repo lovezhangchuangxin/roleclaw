@@ -29,13 +29,6 @@ export interface AiSettings {
   defaultModelId?: string | null;
 }
 
-export interface WorldRule {
-  id: string;
-  title: string;
-  content: string;
-  priority: number;
-}
-
 export interface CharacterArchetype {
   id: string;
   name: string;
@@ -62,16 +55,72 @@ export interface PathEdge {
   conditions: string[];
 }
 
+export interface WorldBook {
+  title: string;
+  overview: string;
+  background: string;
+  coreConflicts: string[];
+  playStyle: string;
+}
+
+export interface MapCanvas {
+  width: number;
+  height: number;
+}
+
+export interface MapNode {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  x: number;
+  y: number;
+}
+
+export interface MapEdge {
+  id: string;
+  a: string;
+  b: string;
+  locked: boolean;
+  unlockConditions: string[];
+}
+
+export interface WorldMap {
+  nodes: MapNode[];
+  edges: MapEdge[];
+  startNodeId: string;
+  canvas: MapCanvas;
+}
+
+export interface NpcProfile {
+  id: string;
+  name: string;
+  personality: string[];
+  identity: string;
+}
+
+export interface CardEvent {
+  id: string;
+  name: string;
+  prompt: string;
+}
+
+export interface ChapterGoal {
+  id: string;
+  title: string;
+  prompt: string;
+}
+
 export interface WorldCard {
   id: string;
   name: string;
   schemaVersion: string;
   contentVersion: number;
-  genre: string;
-  tone: string;
-  rules: WorldRule[];
-  locationPool: LocationNode[];
-  archetypePool: CharacterArchetype[];
+  worldbook: WorldBook;
+  map: WorldMap;
+  npcs: NpcProfile[];
+  events: CardEvent[];
+  chapterGoals: ChapterGoal[];
 }
 
 export interface WorldInit {
@@ -101,6 +150,47 @@ export interface SaveMeta {
   modelProfileId: string;
   provider: string;
   model: string;
+  parentSaveId?: string;
+  forkedFromTurn?: number;
+}
+
+export interface QuestState {
+  id: string;
+  title: string;
+  stage: number;
+  completed: boolean;
+}
+
+export interface TriggerCondition {
+  type: string;
+  params: Record<string, unknown>;
+}
+
+export interface GuardCondition {
+  expr: string;
+}
+
+export interface EventAction {
+  type:
+    | "set_variable"
+    | "inc_variable"
+    | "unlock_location"
+    | "lock_path"
+    | "update_relationship"
+    | "inject_quest"
+    | "advance_quest_stage"
+    | "append_log";
+  params: Record<string, unknown>;
+}
+
+export interface GameEvent {
+  id: string;
+  name: string;
+  trigger: TriggerCondition;
+  guards: GuardCondition[];
+  actions: EventAction[];
+  cooldownTurns?: number;
+  nextEventIds?: string[];
 }
 
 export interface SaveSnapshot {
@@ -115,6 +205,12 @@ export interface SaveSnapshot {
   modelProfileId: string;
   modelLabel: string;
   activeEventIds: string[];
+  worldVariables: Record<string, unknown>;
+  quests: QuestState[];
+  events: GameEvent[];
+  shortTermMemory: string[];
+  midTermSummary: string;
+  factLocks: string[];
 }
 
 export interface DialogueOption {
@@ -127,6 +223,7 @@ export interface TurnInput {
   saveId: string;
   optionId?: string;
   customText?: string;
+  draft?: boolean;
 }
 
 export interface TurnResult {
@@ -134,6 +231,8 @@ export interface TurnResult {
   options: DialogueOption[];
   stateChangesPreview: string[];
   eventHints: string[];
+  triggeredEventIds: string[];
+  stateDiff: Record<string, unknown>;
 }
 
 export interface EventLogEntry {
@@ -143,6 +242,36 @@ export interface EventLogEntry {
   output: TurnResult;
   triggeredEventIds: string[];
   stateDiff: Record<string, unknown>;
+}
+
+export interface EventLogPage {
+  items: EventLogEntry[];
+  nextCursor?: number;
+  total: number;
+}
+
+export interface ReplayTurn {
+  turn: number;
+  input: TurnInput;
+  output: TurnResult;
+  triggeredEventIds: string[];
+  stateDiff: Record<string, unknown>;
+}
+
+export interface ReplayConsistency {
+  snapshotTurn: number;
+  logLastTurn: number;
+  isMonotonic: boolean;
+  matchesSnapshot: boolean;
+  warnings: string[];
+}
+
+export interface ReplayResult {
+  saveId: string;
+  untilTurn: number;
+  totalTurns: number;
+  turns: ReplayTurn[];
+  consistency: ReplayConsistency;
 }
 
 export interface SaveBundle {
@@ -166,6 +295,9 @@ export interface ConnectivityResult {
 export interface GameSettings {
   theme: "default" | "fantasy" | "terminal" | "archive";
   messageSpeed: "slow" | "normal" | "fast";
+  fontScale: number;
+  uiZoom: number;
+  logLevel: "error" | "warn" | "info" | "debug";
 }
 
 export interface GlobalGameData {

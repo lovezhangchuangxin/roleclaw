@@ -4,13 +4,17 @@ import {
   deleteAiModel,
   deleteSave,
   exportWorldCard,
+  forkSave,
+  generateWorldCardWithAiStream,
   getGlobalGameData,
   generateWorld,
   importWorldCard,
+  listEvents,
   listSaves,
   listWorldCards,
   loadSave,
   moveToLocation,
+  replaySave,
   runTurnStream,
   setDefaultAiModel,
   testModelProvider,
@@ -18,11 +22,15 @@ import {
   upsertAiModel,
 } from "@/lib/api";
 import { normalizeError } from "@/lib/errors";
+import { parse as parsePartialJson, ALL } from "partial-json";
 import type {
   AiModelProfile,
   CreateSaveConfig,
   DialogueOption,
+  EventLogEntry,
   GameSettings,
+  NpcProfile,
+  ReplayResult,
   SaveBundle,
   SaveMeta,
   TurnResult,
@@ -50,7 +58,8 @@ export type ViewMode =
   | "cards"
   | "saves"
   | "ai-settings"
-  | "settings";
+  | "settings"
+  | "replay";
 
 export function useGameApp() {
   const view = ref<ViewMode>("menu");
@@ -63,6 +72,17 @@ export function useGameApp() {
   const customInput = ref("");
   const cardImportText = ref("");
   const cardExportPath = ref("");
+  const aiWorldCardPrompt = ref("");
+  const aiWorldCardGenerating = ref(false);
+  const aiGeneratedWorldCard = ref<WorldCard | null>(null);
+  const aiWorldCardStreamText = ref("");
+  const aiWorldCardStreamParsedOk = ref(false);
+  const replayPreview = ref<EventLogEntry[]>([]);
+  const replayResult = ref<ReplayResult | null>(null);
+  const replaySelectedTurn = ref<number | null>(null);
+  const replayNextCursor = ref<number | null>(null);
+  const replayHasMore = ref(false);
+  const replayLoading = ref(false);
 
   const saves = ref<SaveMeta[]>([]);
   const worldCards = ref<WorldCard[]>([]);
@@ -77,6 +97,9 @@ export function useGameApp() {
   const gameSettings = ref<GameSettings>({
     theme: "default",
     messageSpeed: "normal",
+    fontScale: 1,
+    uiZoom: 1,
+    logLevel: "info",
   });
 
   const aiModels = ref<AiModelProfile[]>([]);
@@ -400,6 +423,193 @@ export function useGameApp() {
     }
   }
 
+  async function saveEditedCard(card: WorldCard) {
+    errorMsg.value = "";
+    try {
+      const normalizedCard: WorldCard = {
+        ...card,
+        worldbook: {
+          ...card.worldbook,
+          coreConflicts: card.worldbook.coreConflicts.filter((line) => line.trim()),
+        },
+        map: {
+          ...card.map,
+          nodes: card.map.nodes.map((node) => ({
+            ...node,
+            tags: node.tags.filter((tag) => tag.trim()),
+          })),
+          edges: card.map.edges.map((edge) => ({
+            ...edge,
+            unlockConditions: edge.unlockConditions.filter((line) => line.trim()),
+          })),
+        },
+        npcs: card.npcs.map((arch: NpcProfile) => ({
+          ...arch,
+          personality: arch.personality.filter((trait) => trait.trim()),
+        })),
+        events: card.events.filter(
+          (event) => event.id.trim() && event.name.trim() && event.prompt.trim(),
+        ),
+        chapterGoals: card.chapterGoals.filter(
+          (goal) => goal.id.trim() && goal.title.trim() && goal.prompt.trim(),
+        ),
+      };
+      await importWorldCard(JSON.stringify(normalizedCard));
+      await refreshHome();
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  async function generateCardDraftWithAi(prompt: string) {
+    if (!prompt.trim()) {
+      errorMsg.value = "请输入用于生成世界卡的提示词";
+      return;
+    }
+    errorMsg.value = "";
+    aiWorldCardGenerating.value = true;
+    aiWorldCardStreamText.value = "";
+    aiWorldCardStreamParsedOk.value = false;
+    try {
+      const card = await generateWorldCardWithAiStream(
+        prompt.trim(),
+        (chunk) => {
+          aiWorldCardStreamText.value += chunk;
+          try {
+            const partial = parsePartialJson(aiWorldCardStreamText.value, ALL) as Record<
+              string,
+              unknown
+            >;
+            aiWorldCardStreamParsedOk.value = typeof partial === "object" && partial !== null;
+          } catch {
+            aiWorldCardStreamParsedOk.value = false;
+          }
+        },
+        defaultModelId.value ?? undefined,
+      );
+      aiGeneratedWorldCard.value = card;
+      aiWorldCardPrompt.value = prompt;
+      aiWorldCardStreamParsedOk.value = true;
+    } catch (err) {
+      setError(err);
+    } finally {
+      aiWorldCardGenerating.value = false;
+    }
+  }
+
+  async function duplicateCard(cardId: string) {
+    const source = worldCards.value.find((card) => card.id === cardId);
+    if (!source) {
+      errorMsg.value = "世界卡不存在";
+      return;
+    }
+    const clone = {
+      ...source,
+      id: `${source.id}_copy_${Date.now()}`,
+      name: `${source.name} 副本`,
+      contentVersion: source.contentVersion + 1,
+    };
+    errorMsg.value = "";
+    try {
+      await importWorldCard(JSON.stringify(clone));
+      await refreshHome();
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  async function refreshReplayConsistency() {
+    if (!activeSave.value) {
+      return;
+    }
+    errorMsg.value = "";
+    try {
+      const replay = await replaySave(activeSave.value.meta.id);
+      replayResult.value = replay;
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  async function loadReplayTimeline(reset = true) {
+    if (!activeSave.value) {
+      return;
+    }
+    if (replayLoading.value) {
+      return;
+    }
+    if (!reset && !replayHasMore.value) {
+      return;
+    }
+    replayLoading.value = true;
+    errorMsg.value = "";
+    try {
+      const page = await listEvents(
+        activeSave.value.meta.id,
+        reset ? undefined : replayNextCursor.value ?? undefined,
+      );
+      if (reset) {
+        replayPreview.value = page.items;
+      } else {
+        replayPreview.value = [...page.items, ...replayPreview.value];
+      }
+      replayNextCursor.value = page.nextCursor ?? null;
+      replayHasMore.value = page.nextCursor != null;
+    } catch (err) {
+      setError(err);
+    } finally {
+      replayLoading.value = false;
+    }
+  }
+
+  async function openReplayView() {
+    if (!activeSave.value) {
+      errorMsg.value = "请先加载一个存档";
+      return;
+    }
+    view.value = "replay";
+    await Promise.all([refreshReplayConsistency(), loadReplayTimeline(true)]);
+    if (replayPreview.value.length) {
+      replaySelectedTurn.value =
+        replayPreview.value[replayPreview.value.length - 1].turn;
+    }
+  }
+
+  async function refreshReplayData() {
+    await Promise.all([refreshReplayConsistency(), loadReplayTimeline(true)]);
+  }
+
+  async function forkAtTurn(turn: number) {
+    if (!activeSave.value) {
+      return;
+    }
+    const name = `${activeSave.value.meta.name} 分叉 T${turn}`;
+    errorMsg.value = "";
+    try {
+      const meta = await forkSave(activeSave.value.meta.id, turn, name);
+      await refreshHome();
+      await openSave(meta.id, true);
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  async function forkActiveSave() {
+    if (!activeSave.value) {
+      return;
+    }
+    const fromTurn = activeSave.value.snapshot.turn;
+    const name = `${activeSave.value.meta.name} 分叉 T${fromTurn}`;
+    errorMsg.value = "";
+    try {
+      const meta = await forkSave(activeSave.value.meta.id, fromTurn, name);
+      await refreshHome();
+      await openSave(meta.id, true);
+    } catch (err) {
+      setError(err);
+    }
+  }
+
   return {
     view,
     errorMsg,
@@ -411,6 +621,17 @@ export function useGameApp() {
     customInput,
     cardImportText,
     cardExportPath,
+    aiWorldCardPrompt,
+    aiWorldCardGenerating,
+    aiGeneratedWorldCard,
+    aiWorldCardStreamText,
+    aiWorldCardStreamParsedOk,
+    replayPreview,
+    replayResult,
+    replaySelectedTurn,
+    replayNextCursor,
+    replayHasMore,
+    replayLoading,
     saves,
     worldCards,
     activeSave,
@@ -439,5 +660,14 @@ export function useGameApp() {
     move,
     importCardFromText,
     exportCard,
+    duplicateCard,
+    saveEditedCard,
+    generateCardDraftWithAi,
+    refreshReplayConsistency,
+    loadReplayTimeline,
+    refreshReplayData,
+    openReplayView,
+    forkAtTurn,
+    forkActiveSave,
   };
 }
