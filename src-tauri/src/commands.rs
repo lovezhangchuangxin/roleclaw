@@ -867,6 +867,12 @@ pub fn delete_save(save_id: String, app: AppHandle) -> ApiResult<()> {
 }
 
 #[tauri::command]
+pub fn exit_app(app: AppHandle) -> ApiResult<()> {
+    app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn move_to_location(
     save_id: String,
     location_id: String,

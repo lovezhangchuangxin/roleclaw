@@ -6,7 +6,12 @@
       <p class="menu-subtitle">{{ subtitle }}</p>
 
       <div class="menu-actions">
-        <button class="menu-btn" @click="$emit('select', 'start')">开始游戏</button>
+        <button class="menu-btn" :disabled="startDisabled" @click="$emit('select', 'start')">
+          {{ startLabel || "开始游戏" }}
+        </button>
+        <button v-if="showNewGame" class="menu-btn" @click="$emit('select', 'new')">
+          {{ newGameLabel || "新游戏" }}
+        </button>
         <button class="menu-btn" @click="$emit('select', 'saves')">存档管理</button>
         <button class="menu-btn" @click="$emit('select', 'ai')">AI设置</button>
         <button class="menu-btn" @click="$emit('select', 'cards')">世界卡管理</button>
@@ -24,10 +29,14 @@ defineProps<{
   title: string;
   subtitle: string;
   showClose?: boolean;
+  showNewGame?: boolean;
+  startLabel?: string;
+  newGameLabel?: string;
+  startDisabled?: boolean;
 }>();
 
 defineEmits<{
-  select: [action: "start" | "saves" | "ai" | "cards" | "settings" | "exit"];
+  select: [action: "start" | "new" | "saves" | "ai" | "cards" | "settings" | "exit"];
   close: [];
 }>();
 </script>
@@ -90,6 +99,12 @@ defineEmits<{
 .menu-btn:hover {
   transform: translateY(-1px);
   background: var(--game-btn-hover-bg);
+}
+
+.menu-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
 }
 
 .menu-btn-danger {

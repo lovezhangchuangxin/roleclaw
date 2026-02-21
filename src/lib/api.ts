@@ -30,6 +30,10 @@ export async function deleteSave(saveId: string): Promise<void> {
   return invoke("delete_save", { saveId });
 }
 
+export async function exitApp(): Promise<void> {
+  return invoke("exit_app");
+}
+
 export async function listWorldCards(): Promise<WorldCard[]> {
   return invoke("list_world_cards");
 }

@@ -159,6 +159,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import GameMapCanvas from "@/components/game/GameMapCanvas.vue";
 import GameSettingsMenu from "@/components/game/GameSettingsMenu.vue";
 import { useGameAppContext } from "@/composables/useGameAppContext";
+import { exitApp } from "@/lib/api";
 import type { TurnInput } from "@/types";
 
 const {
@@ -241,7 +242,9 @@ function onKeydown(event: KeyboardEvent) {
   showInGameMenu.value = !showInGameMenu.value;
 }
 
-function handleMenuSelect(action: "start" | "saves" | "ai" | "cards" | "settings" | "exit") {
+function handleMenuSelect(
+  action: "start" | "new" | "saves" | "ai" | "cards" | "settings" | "exit",
+) {
   if (action === "exit") {
     void exitGame();
     return;
@@ -249,7 +252,7 @@ function handleMenuSelect(action: "start" | "saves" | "ai" | "cards" | "settings
 
   showInGameMenu.value = false;
 
-  if (action === "start") {
+  if (action === "start" || action === "new") {
     if (!defaultModelId.value) {
       errorMsg.value = "无法开始游戏：当前没有默认 AI 模型。请先到 AI 设置新增模型并设为默认。";
       setView("ai-settings");
@@ -268,6 +271,13 @@ function handleMenuSelect(action: "start" | "saves" | "ai" | "cards" | "settings
 }
 
 async function exitGame() {
+  try {
+    await exitApp();
+    return;
+  } catch {
+    // Fall back to closing current window if backend command fails.
+  }
+
   try {
     const appWindow = getCurrentWindow();
     await appWindow.close();

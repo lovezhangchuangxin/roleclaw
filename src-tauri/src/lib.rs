@@ -28,6 +28,7 @@ pub fn run() {
             commands::load_save,
             commands::list_saves,
             commands::delete_save,
+            commands::exit_app,
             commands::generate_world,
             commands::run_turn,
             commands::run_turn_stream,
