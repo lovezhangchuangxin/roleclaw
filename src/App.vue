@@ -17,12 +17,14 @@
     </p>
 
     <RouterView />
+    <Toaster rich-colors position="top-center" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, provide, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
+import { Toaster } from "@/components/ui/sonner";
 import { gameAppContextKey } from "@/composables/useGameAppContext";
 import { useGameApp, type ViewMode } from "@/composables/useGameApp";
 import { routeNameByView } from "@/router";

@@ -129,6 +129,7 @@ export function useGameApp() {
   const defaultModelId = ref<string | null>(null);
   const editingModelId = ref<string | null>(null);
   const aiDraft = ref<AiModelProfile>(defaultAiModelDraft());
+  const modelImportText = ref("");
 
   const reachableLocations = computed(() => {
     if (!activeSave.value) {
@@ -375,6 +376,98 @@ export function useGameApp() {
     } catch (err) {
       setError(err);
     }
+  }
+
+  function normalizeImportModel(input: unknown, fallbackId: string): AiModelProfile {
+    if (!input || typeof input !== "object") {
+      throw new Error("模型配置项必须是对象");
+    }
+    const draft = input as Partial<AiModelProfile>;
+    const providerType =
+      draft.providerType === "openai_compatible" ? draft.providerType : "openai_compatible";
+    const provider = typeof draft.provider === "string" ? draft.provider.trim() : "";
+    const baseUrl = typeof draft.baseUrl === "string" ? draft.baseUrl.trim() : "";
+    const model = typeof draft.model === "string" ? draft.model.trim() : "";
+    if (!provider || !baseUrl || !model) {
+      throw new Error("模型配置缺少必填字段：provider/baseUrl/model");
+    }
+    const temperatureRaw = Number(draft.temperature);
+    const timeoutRaw = Number(draft.timeoutMs);
+    const maxTokensRaw = draft.maxTokens == null ? undefined : Number(draft.maxTokens);
+    return {
+      id: typeof draft.id === "string" && draft.id.trim() ? draft.id.trim() : fallbackId,
+      providerType,
+      provider,
+      baseUrl,
+      model,
+      apiKey: typeof draft.apiKey === "string" ? draft.apiKey : "",
+      temperature: Number.isFinite(temperatureRaw) ? temperatureRaw : 0.7,
+      maxTokens:
+        maxTokensRaw == null || Number.isNaN(maxTokensRaw) ? undefined : Math.max(1, Math.floor(maxTokensRaw)),
+      timeoutMs: Number.isFinite(timeoutRaw) ? Math.max(1000, Math.floor(timeoutRaw)) : 25000,
+      updatedAt: typeof draft.updatedAt === "string" ? draft.updatedAt : "",
+    };
+  }
+
+  function exportAiModels(modelIds: string[] = []): string {
+    errorMsg.value = "";
+    const picked = modelIds.length
+      ? aiModels.value.filter((item) => modelIds.includes(item.id))
+      : aiModels.value;
+    const payload = {
+      schemaVersion: "roleclaw.ai-models.v1",
+      exportedAt: new Date().toISOString(),
+      defaultModelId: defaultModelId.value,
+      models: picked.map((item) => ({ ...item })),
+    };
+    return JSON.stringify(payload, null, 2);
+  }
+
+  async function importAiModelsFromText() {
+    if (!modelImportText.value.trim()) {
+      throw new Error("请先粘贴模型配置 JSON");
+    }
+    errorMsg.value = "";
+    const raw = JSON.parse(modelImportText.value.trim()) as unknown;
+    let sourceModels: unknown[] = [];
+    let sourceDefaultId: string | null = null;
+    if (Array.isArray(raw)) {
+      sourceModels = raw;
+    } else if (raw && typeof raw === "object") {
+      const obj = raw as { models?: unknown; defaultModelId?: unknown };
+      if (Array.isArray(obj.models)) {
+        sourceModels = obj.models;
+      } else {
+        sourceModels = [raw];
+      }
+      if (typeof obj.defaultModelId === "string" && obj.defaultModelId.trim()) {
+        sourceDefaultId = obj.defaultModelId.trim();
+      }
+    } else {
+      throw new Error("导入内容必须是对象或数组");
+    }
+
+    if (sourceModels.length === 0) {
+      throw new Error("未解析到任何模型配置");
+    }
+
+    const normalized = sourceModels.map((item, idx) =>
+      normalizeImportModel(item, `import_${Date.now()}_${idx + 1}`),
+    );
+    const savedModels: AiModelProfile[] = [];
+    for (const model of normalized) {
+      const saved = await upsertAiModel(model);
+      savedModels.push(saved);
+    }
+
+    await refreshHome();
+    if (sourceDefaultId) {
+      const defaultIdx = normalized.findIndex((item) => item.id === sourceDefaultId);
+      if (defaultIdx >= 0 && savedModels[defaultIdx]) {
+        await markDefaultAiModel(savedModels[defaultIdx].id);
+      }
+    }
+    return savedModels.length;
   }
 
   async function createNewSave() {
@@ -959,6 +1052,7 @@ export function useGameApp() {
     defaultModelId,
     editingModelId,
     aiDraft,
+    modelImportText,
     reachableLocations,
     goMenu,
     setView,
@@ -971,6 +1065,8 @@ export function useGameApp() {
     saveAiModel,
     removeAiModel,
     markDefaultAiModel,
+    exportAiModels,
+    importAiModelsFromText,
     saveGlobalGameData,
     createNewSave,
     submitOption,
