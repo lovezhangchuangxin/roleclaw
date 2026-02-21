@@ -5,7 +5,10 @@ use serde_json::Value;
 #[serde(rename_all = "camelCase")]
 pub struct ModelProviderConfig {
     pub provider: String,
+    pub provider_name: String,
+    pub base_url: String,
     pub model: String,
+    pub api_key: Option<String>,
     pub temperature: f32,
     pub max_tokens: u32,
     pub timeout_ms: u32,
@@ -195,4 +198,18 @@ pub struct EventResult {
 pub struct ConnectivityResult {
     pub ok: bool,
     pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GameSettings {
+    pub theme: String,
+    pub message_speed: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalGameData {
+    pub game_settings: GameSettings,
+    pub ai_settings: ModelProviderConfig,
 }

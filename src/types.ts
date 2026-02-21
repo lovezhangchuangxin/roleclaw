@@ -1,8 +1,11 @@
-export type Provider = "openai" | "claude";
+export type Provider = "openai_compatible";
 
 export interface ModelProviderConfig {
   provider: Provider;
+  providerName: string;
+  baseUrl: string;
   model: string;
+  apiKey?: string;
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
@@ -138,4 +141,14 @@ export interface MoveResult {
 export interface ConnectivityResult {
   ok: boolean;
   message: string;
+}
+
+export interface GameSettings {
+  theme: "default" | "fantasy" | "terminal" | "archive";
+  messageSpeed: "slow" | "normal" | "fast";
+}
+
+export interface GlobalGameData {
+  gameSettings: GameSettings;
+  aiSettings: ModelProviderConfig;
 }

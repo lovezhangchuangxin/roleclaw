@@ -3,24 +3,40 @@ import {
   createSave,
   deleteSave,
   exportWorldCard,
+  getGlobalGameData,
   generateWorld,
   importWorldCard,
   listSaves,
   listWorldCards,
   loadSave,
   moveToLocation,
-  runTurn,
+  runTurnStream,
   testModelProvider,
+  updateGlobalGameData,
 } from "@/lib/api";
 import { normalizeError } from "@/lib/errors";
 import type {
   CreateSaveConfig,
   DialogueOption,
+  GameSettings,
   SaveBundle,
   SaveMeta,
   TurnResult,
   WorldCard,
 } from "@/types";
+
+function defaultAiModelConfig() {
+  return {
+    provider: "openai_compatible" as const,
+    providerName: "OpenAI Compatible",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4.1",
+    apiKey: "",
+    temperature: 0.7,
+    maxTokens: 100000,
+    timeoutMs: 25000,
+  };
+}
 
 export type ViewMode = "menu" | "new" | "game" | "cards" | "saves" | "ai-settings" | "settings";
 
@@ -43,13 +59,11 @@ export function useGameApp() {
     saveName: "新冒险",
     playerRole: "流浪调查员",
     worldCardId: "",
-    modelConfig: {
-      provider: "openai",
-      model: "gpt-4.1",
-      temperature: 0.7,
-      maxTokens: 900,
-      timeoutMs: 25000,
-    },
+    modelConfig: defaultAiModelConfig(),
+  });
+  const gameSettings = ref<GameSettings>({
+    theme: "default",
+    messageSpeed: "normal",
   });
 
   const reachableLocations = computed(() => {
@@ -88,9 +102,12 @@ export function useGameApp() {
   async function refreshHome() {
     errorMsg.value = "";
     try {
-      const [saveList, cardList] = await Promise.all([listSaves(), listWorldCards()]);
+      const [saveList, cardList, globalData] = await Promise.all([listSaves(), listWorldCards(), getGlobalGameData()]);
       saves.value = saveList;
       worldCards.value = cardList;
+      gameSettings.value = globalData.gameSettings;
+      const ai = globalData.aiSettings.provider === "openai_compatible" ? globalData.aiSettings : defaultAiModelConfig();
+      newSave.value.modelConfig = { ...newSave.value.modelConfig, ...ai, provider: "openai_compatible" };
       if (!newSave.value.worldCardId && cardList.length > 0) {
         newSave.value.worldCardId = cardList[0].id;
       }
@@ -152,6 +169,18 @@ export function useGameApp() {
     }
   }
 
+  async function saveGlobalGameData() {
+    errorMsg.value = "";
+    try {
+      await updateGlobalGameData({
+        gameSettings: gameSettings.value,
+        aiSettings: newSave.value.modelConfig,
+      });
+    } catch (err) {
+      setError(err);
+    }
+  }
+
   async function applyTurnResult(result: TurnResult) {
     narrationText.value = result.narration;
     stateChanges.value = result.stateChangesPreview;
@@ -167,7 +196,10 @@ export function useGameApp() {
     }
     errorMsg.value = "";
     try {
-      const result = await runTurn({ saveId: activeSave.value.meta.id, optionId });
+      narrationText.value = "";
+      const result = await runTurnStream({ saveId: activeSave.value.meta.id, optionId }, (chunk) => {
+        narrationText.value += chunk;
+      });
       await applyTurnResult(result);
     } catch (err) {
       setError(err);
@@ -180,10 +212,16 @@ export function useGameApp() {
     }
     errorMsg.value = "";
     try {
-      const result = await runTurn({
-        saveId: activeSave.value.meta.id,
-        customText: customInput.value.trim(),
-      });
+      narrationText.value = "";
+      const result = await runTurnStream(
+        {
+          saveId: activeSave.value.meta.id,
+          customText: customInput.value.trim(),
+        },
+        (chunk) => {
+          narrationText.value += chunk;
+        }
+      );
       customInput.value = "";
       await applyTurnResult(result);
     } catch (err) {
@@ -247,6 +285,7 @@ export function useGameApp() {
     worldCards,
     activeSave,
     newSave,
+    gameSettings,
     reachableLocations,
     goMenu,
     setView,
@@ -254,6 +293,7 @@ export function useGameApp() {
     openSave,
     removeSave,
     checkModel,
+    saveGlobalGameData,
     createNewSave,
     submitOption,
     submitCustom,

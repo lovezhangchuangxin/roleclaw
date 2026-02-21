@@ -1,7 +1,7 @@
 use crate::domain::{
-    CharacterArchetype, EventLogEntry, PathEdge, TurnInput, TurnResult, WorldCard, WorldInit, WorldRule,
+    CharacterArchetype, DialogueOption, EventLogEntry, PathEdge, TurnInput, TurnResult, WorldCard, WorldInit, WorldRule,
 };
-use crate::llm::{generate_turn, TurnGenerationContext};
+use crate::llm::{generate_narration, stream_narration};
 use crate::storage::{append_ndjson, load_meta, load_snapshot, now_iso, write_meta, write_snapshot, AppPaths};
 use serde_json::json;
 
@@ -154,31 +154,60 @@ pub fn generate_world_from_card(card: &WorldCard, player_role: &str) -> WorldIni
     }
 }
 
-pub fn run_turn_with_provider(paths: &AppPaths, turn_input: TurnInput) -> Result<TurnResult, String> {
-    let mut snapshot = load_snapshot(paths, &turn_input.save_id)?;
-    let mut meta = load_meta(paths, &turn_input.save_id)?;
-    let selected = turn_input
-        .custom_text
-        .clone()
-        .or(turn_input.option_id.clone())
-        .unwrap_or_else(|| "观察周围".to_string());
-
-    snapshot.turn += 1;
-    let result = generate_turn(
-        &snapshot.model_config.provider,
-        &TurnGenerationContext {
-            location_id: snapshot.current_location_id.clone(),
-            player_role: snapshot.player_role.clone(),
-            selected_action: selected,
-            turn: snapshot.turn - 1,
-            model: snapshot.model_config.model.clone(),
+fn build_turn_options() -> Vec<DialogueOption> {
+    vec![
+        DialogueOption {
+            id: "opt_plot_1".to_string(),
+            kind: "plot".to_string(),
+            text: "追问关键线索，推动主线".to_string(),
         },
-    )?;
+        DialogueOption {
+            id: "opt_emotion_1".to_string(),
+            kind: "emotion".to_string(),
+            text: "尝试建立信任并交换信息".to_string(),
+        },
+        DialogueOption {
+            id: "opt_risk_1".to_string(),
+            kind: "risk".to_string(),
+            text: "冒险试探禁区，获取高价值情报".to_string(),
+        },
+    ]
+}
 
+fn build_state_changes(turn_input: &TurnInput) -> Vec<String> {
+    let mut changes = vec!["回合推进 +1".to_string()];
+    if let Some(option_id) = turn_input.option_id.as_ref() {
+        if option_id.contains("emotion") {
+            changes.push("社交倾向提升".to_string());
+        } else if option_id.contains("risk") {
+            changes.push("风险压力上升".to_string());
+        } else {
+            changes.push("主线推进度提升".to_string());
+        }
+    } else if turn_input.custom_text.is_some() {
+        changes.push("自定义行为触发自由演算".to_string());
+    }
+    changes
+}
+
+fn build_turn_prompt(location: &str, player_role: &str, selected: &str) -> String {
+    format!(
+        "你正在进行文字 RPG。\n玩家身份：{player_role}\n当前位置：{location}\n玩家本回合行为：{selected}\n请输出 120-260 字的中文叙事，体现环境反馈、NPC反应、潜在线索。"
+    )
+}
+
+fn persist_turn_result(
+    paths: &AppPaths,
+    turn_input: TurnInput,
+    mut snapshot: crate::domain::SaveSnapshot,
+    mut meta: crate::domain::SaveMeta,
+    result: TurnResult,
+) -> Result<TurnResult, String> {
+    snapshot.turn += 1;
     let log = EventLogEntry {
         turn: snapshot.turn,
         timestamp: now_iso(),
-        input: turn_input,
+        input: turn_input.clone(),
         output: result.clone(),
         triggered_event_ids: vec!["evt_generic_turn".to_string()],
         state_diff: json!({
@@ -196,4 +225,57 @@ pub fn run_turn_with_provider(paths: &AppPaths, turn_input: TurnInput) -> Result
     append_ndjson(&paths.save_dir(&snapshot.save_id).join("events.ndjson"), &log)?;
 
     Ok(result)
+}
+
+pub async fn run_turn_with_provider(paths: &AppPaths, turn_input: TurnInput) -> Result<TurnResult, String> {
+    let snapshot = load_snapshot(paths, &turn_input.save_id)?;
+    let meta = load_meta(paths, &turn_input.save_id)?;
+    let selected = turn_input
+        .custom_text
+        .clone()
+        .or(turn_input.option_id.clone())
+        .unwrap_or_else(|| "观察周围".to_string());
+
+    let narration = generate_narration(
+        &snapshot.model_config,
+        &build_turn_prompt(&snapshot.current_location_id, &snapshot.player_role, &selected),
+    )
+    .await?;
+    let result = TurnResult {
+        narration,
+        options: build_turn_options(),
+        state_changes_preview: build_state_changes(&turn_input),
+        event_hints: vec!["可能触发：地点关联事件".to_string()],
+    };
+
+    persist_turn_result(paths, turn_input, snapshot, meta, result)
+}
+
+pub async fn run_turn_stream_with_provider(
+    paths: &AppPaths,
+    turn_input: TurnInput,
+    on_chunk: &mut (dyn FnMut(&str) -> Result<(), String> + Send),
+) -> Result<TurnResult, String> {
+    let snapshot = load_snapshot(paths, &turn_input.save_id)?;
+    let meta = load_meta(paths, &turn_input.save_id)?;
+    let selected = turn_input
+        .custom_text
+        .clone()
+        .or(turn_input.option_id.clone())
+        .unwrap_or_else(|| "观察周围".to_string());
+
+    let narration = stream_narration(
+        &snapshot.model_config,
+        &build_turn_prompt(&snapshot.current_location_id, &snapshot.player_role, &selected),
+        on_chunk,
+    )
+    .await?;
+
+    let result = TurnResult {
+        narration,
+        options: build_turn_options(),
+        state_changes_preview: build_state_changes(&turn_input),
+        event_hints: vec!["可能触发：地点关联事件".to_string()],
+    };
+    persist_turn_result(paths, turn_input, snapshot, meta, result)
 }

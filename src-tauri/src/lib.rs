@@ -25,11 +25,14 @@ pub fn run() {
             commands::delete_save,
             commands::generate_world,
             commands::run_turn,
+            commands::run_turn_stream,
             commands::move_to_location,
             commands::trigger_event,
             commands::import_world_card,
             commands::export_world_card,
             commands::list_world_cards,
+            commands::get_global_game_data,
+            commands::update_global_game_data,
             commands::test_model_provider
         ])
         .run(tauri::generate_context!())

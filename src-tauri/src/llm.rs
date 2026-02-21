@@ -1,78 +1,106 @@
-use crate::domain::{DialogueOption, TurnResult};
+use crate::domain::ModelProviderConfig;
+use futures_util::StreamExt;
+use genai::adapter::AdapterKind;
+use genai::chat::{ChatRequest, ChatStreamEvent};
+use genai::resolver::{AuthData, Endpoint, Result as ResolverResult};
+use genai::{Client, ModelIden, ServiceTarget};
 
-pub struct TurnGenerationContext {
-    pub location_id: String,
-    pub player_role: String,
-    pub selected_action: String,
-    pub turn: u32,
-    pub model: String,
+fn build_openai_compatible_client(config: &ModelProviderConfig) -> Result<Client, String> {
+    let base_url = config.base_url.trim_end_matches('/').to_string();
+    let api_key = config
+        .api_key
+        .clone()
+        .filter(|key| !key.trim().is_empty())
+        .ok_or_else(|| "apiKey 不能为空".to_string())?;
+
+    let model_mapper = move |model_iden: ModelIden| -> ResolverResult<ModelIden> {
+        Ok(ModelIden::new(
+            AdapterKind::OpenAI,
+            model_iden.model_name.to_string(),
+        ))
+    };
+
+    let auth_resolver = move |_model_iden: ModelIden| -> ResolverResult<Option<AuthData>> {
+        Ok(Some(AuthData::from_single(api_key.clone())))
+    };
+
+    let target_resolver = move |mut target: ServiceTarget| -> ResolverResult<ServiceTarget> {
+        target.endpoint = Endpoint::from_owned(base_url.clone());
+        Ok(target)
+    };
+
+    Ok(Client::builder()
+        .with_model_mapper_fn(model_mapper)
+        .with_auth_resolver_fn(auth_resolver)
+        .with_service_target_resolver_fn(target_resolver)
+        .build())
 }
 
-pub trait NarrativeProvider {
-    fn generate_turn(&self, ctx: &TurnGenerationContext) -> TurnResult;
+pub async fn test_provider_connectivity(config: &ModelProviderConfig) -> Result<String, String> {
+    if config.provider != "openai_compatible" {
+        return Err("当前仅支持 openai_compatible 协议".to_string());
+    }
+
+    let client = build_openai_compatible_client(config)?;
+    let req = ChatRequest::from_user("Reply with exactly: pong");
+    let chat_res = client
+        .exec_chat(&config.model, req, None)
+        .await
+        .map_err(|e| format!("genai 连通性测试失败: {e}"))?;
+
+    let reply = chat_res
+        .content_text_as_str()
+        .unwrap_or("")
+        .chars()
+        .take(80)
+        .collect::<String>();
+    Ok(format!(
+        "{} / {} 已连通（{}），模型回复片段：{}",
+        config.provider_name, config.model, config.base_url, reply
+    ))
 }
 
-pub struct OpenAiProvider;
-pub struct ClaudeProvider;
-
-fn default_options() -> Vec<DialogueOption> {
-    vec![
-        DialogueOption {
-            id: "opt_plot_1".to_string(),
-            kind: "plot".to_string(),
-            text: "追问眼前线索的源头".to_string(),
-        },
-        DialogueOption {
-            id: "opt_emotion_1".to_string(),
-            kind: "emotion".to_string(),
-            text: "先建立信任再推进话题".to_string(),
-        },
-        DialogueOption {
-            id: "opt_risk_1".to_string(),
-            kind: "risk".to_string(),
-            text: "冒险试探禁区情报".to_string(),
-        },
-    ]
+pub async fn generate_narration(config: &ModelProviderConfig, prompt: &str) -> Result<String, String> {
+    let client = build_openai_compatible_client(config)?;
+    let req = ChatRequest::from_user(prompt).with_system("你是一个中文 RPG 叙事引擎，回复仅输出叙事文本，不要解释。");
+    let chat_res = client
+        .exec_chat(&config.model, req, None)
+        .await
+        .map_err(|e| format!("genai 生成失败: {e}"))?;
+    let text = chat_res
+        .content_text_as_str()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if text.is_empty() {
+        return Err("模型返回了空内容".to_string());
+    }
+    Ok(text)
 }
 
-impl NarrativeProvider for OpenAiProvider {
-    fn generate_turn(&self, ctx: &TurnGenerationContext) -> TurnResult {
-        TurnResult {
-            narration: format!(
-                "你在「{}」执行了动作：{}。基于 {} 的演算结果，局势出现新线索，作为{}你感到局面正在朝可控方向变化。",
-                ctx.location_id, ctx.selected_action, ctx.model, ctx.player_role
-            ),
-            options: default_options(),
-            state_changes_preview: vec![
-                format!("回合推进到 {}", ctx.turn + 1),
-                "主线推进度小幅提升".to_string(),
-            ],
-            event_hints: vec!["可能触发：地点关联事件".to_string()],
+pub async fn stream_narration(
+    config: &ModelProviderConfig,
+    prompt: &str,
+    on_chunk: &mut (dyn FnMut(&str) -> Result<(), String> + Send),
+) -> Result<String, String> {
+    let client = build_openai_compatible_client(config)?;
+    let req = ChatRequest::from_user(prompt).with_system("你是一个中文 RPG 叙事引擎，回复仅输出叙事文本，不要解释。");
+    let mut stream_res = client
+        .exec_chat_stream(&config.model, req, None)
+        .await
+        .map_err(|e| format!("genai 流式启动失败: {e}"))?;
+
+    let mut narration = String::new();
+    while let Some(event) = stream_res.stream.next().await {
+        let event = event.map_err(|e| format!("genai 流式事件错误: {e}"))?;
+        if let ChatStreamEvent::Chunk(chunk) = event {
+            narration.push_str(&chunk.content);
+            on_chunk(&chunk.content)?;
         }
     }
-}
-
-impl NarrativeProvider for ClaudeProvider {
-    fn generate_turn(&self, ctx: &TurnGenerationContext) -> TurnResult {
-        TurnResult {
-            narration: format!(
-                "在「{}」，你做出了“{}”这一选择。{} 给出的叙事推演显示，关键人物开始重新评估你的立场，暗线正在浮现。",
-                ctx.location_id, ctx.selected_action, ctx.model
-            ),
-            options: default_options(),
-            state_changes_preview: vec![
-                format!("回合推进到 {}", ctx.turn + 1),
-                "关系网张力提升".to_string(),
-            ],
-            event_hints: vec!["可能触发：人物关系阈值事件".to_string()],
-        }
+    let narration = narration.trim().to_string();
+    if narration.is_empty() {
+        return Err("模型流式返回了空内容".to_string());
     }
-}
-
-pub fn generate_turn(provider: &str, ctx: &TurnGenerationContext) -> Result<TurnResult, String> {
-    match provider {
-        "openai" => Ok(OpenAiProvider.generate_turn(ctx)),
-        "claude" => Ok(ClaudeProvider.generate_turn(ctx)),
-        _ => Err(format!("unsupported provider: {provider}")),
-    }
+    Ok(narration)
 }

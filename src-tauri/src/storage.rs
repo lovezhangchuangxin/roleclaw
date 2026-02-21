@@ -1,4 +1,4 @@
-use crate::domain::{EventLogEntry, SaveMeta, SaveSnapshot, WorldCard};
+use crate::domain::{EventLogEntry, GlobalGameData, SaveMeta, SaveSnapshot, WorldCard};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -136,4 +136,16 @@ pub fn list_saves(paths: &AppPaths) -> Result<Vec<SaveMeta>, String> {
     }
     saves.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     Ok(saves)
+}
+
+pub fn global_data_path(paths: &AppPaths) -> PathBuf {
+    paths.saves_dir.parent().unwrap_or(&paths.saves_dir).join("global-data.json")
+}
+
+pub fn load_global_data(paths: &AppPaths) -> Result<GlobalGameData, String> {
+    read_json(&global_data_path(paths))
+}
+
+pub fn write_global_data(paths: &AppPaths, data: &GlobalGameData) -> Result<(), String> {
+    write_json(&global_data_path(paths), data)
 }

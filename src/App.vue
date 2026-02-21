@@ -79,31 +79,56 @@
 
       <section v-if="view === 'ai-settings'" class="panel max-w-3xl">
         <h2 class="panel-title">AI设置</h2>
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="field">
-            <span>Provider</span>
-            <select v-model="newSave.modelConfig.provider" class="input">
-              <option value="openai">openai</option>
-              <option value="claude">claude</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>模型名</span>
-            <input v-model="newSave.modelConfig.model" class="input" />
-          </label>
-          <label class="field">
-            <span>Temperature</span>
-            <input v-model.number="newSave.modelConfig.temperature" class="input" type="number" step="0.1" />
-          </label>
-          <label class="field">
-            <span>Max Tokens</span>
-            <input v-model.number="newSave.modelConfig.maxTokens" class="input" type="number" />
-          </label>
+        <p class="text-sm text-muted-foreground">当前协议类型仅支持 OpenAI Compatible。</p>
+
+        <div class="ai-grid mt-4">
+          <div class="ai-block">
+            <h3 class="ai-block-title">连接配置</h3>
+            <div class="grid gap-4 md:grid-cols-2">
+              <label class="field">
+                <span>协议类型</span>
+                <input class="input" value="OpenAI Compatible" disabled />
+              </label>
+              <label class="field">
+                <span>Provider 名称</span>
+                <input v-model="newSave.modelConfig.providerName" class="input" placeholder="例如 OpenAI / DeepSeek" />
+              </label>
+              <label class="field md:col-span-2">
+                <span>Base URL</span>
+                <input v-model="newSave.modelConfig.baseUrl" class="input" placeholder="例如 https://api.openai.com/v1" />
+              </label>
+              <label class="field md:col-span-2">
+                <span>API Key</span>
+                <input v-model="newSave.modelConfig.apiKey" class="input" type="password" placeholder="sk-..." />
+              </label>
+            </div>
+          </div>
+
+          <div class="ai-block">
+            <h3 class="ai-block-title">模型参数</h3>
+            <div class="grid gap-4 md:grid-cols-2">
+              <label class="field md:col-span-2">
+                <span>模型名</span>
+                <input v-model="newSave.modelConfig.model" class="input" />
+              </label>
+              <label class="field">
+                <span>Temperature</span>
+                <input v-model.number="newSave.modelConfig.temperature" class="input" type="number" step="0.1" />
+              </label>
+              <label class="field">
+                <span>Max Tokens</span>
+                <input v-model.number="newSave.modelConfig.maxTokens" class="input" type="number" />
+              </label>
+            </div>
+          </div>
         </div>
-        <div class="mt-4 flex gap-2">
-          <button class="btn" @click="checkModel">测试模型配置</button>
-          <p v-if="modelCheckMsg" class="text-sm text-muted-foreground">{{ modelCheckMsg }}</p>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button class="btn" @click="checkModel">连通性测试</button>
+          <button class="btn btn-primary" @click="saveGlobalGameData">保存AI设置</button>
         </div>
+        <p v-if="modelCheckMsg" class="mt-2 rounded border p-2 text-sm model-check-msg">{{ modelCheckMsg }}</p>
+        <p class="mt-2 text-xs text-muted-foreground">说明：API Key 仅保存在全局设置中，存档不会保存 API Key。</p>
       </section>
 
       <section v-if="view === 'settings'" class="panel max-w-3xl">
@@ -111,7 +136,7 @@
         <div class="grid gap-4 md:grid-cols-2">
           <label class="field">
             <span>主题</span>
-            <select v-model="uiSettings.theme" class="input">
+            <select v-model="gameSettings.theme" class="input">
               <option value="default">默认</option>
               <option value="fantasy">沉浸幻想</option>
               <option value="terminal">科幻终端</option>
@@ -120,12 +145,15 @@
           </label>
           <label class="field">
             <span>消息速度</span>
-            <select v-model="uiSettings.messageSpeed" class="input">
+            <select v-model="gameSettings.messageSpeed" class="input">
               <option value="slow">慢</option>
               <option value="normal">中</option>
               <option value="fast">快</option>
             </select>
           </label>
+        </div>
+        <div class="mt-4 flex gap-2">
+          <button class="btn btn-primary" @click="saveGlobalGameData">保存游戏设置</button>
         </div>
       </section>
 
@@ -225,12 +253,14 @@ const {
   worldCards,
   activeSave,
   newSave,
+  gameSettings,
   reachableLocations,
   setView,
   refreshHome,
   openSave,
   removeSave,
   checkModel,
+  saveGlobalGameData,
   createNewSave,
   submitOption,
   submitCustom,
@@ -240,12 +270,6 @@ const {
 } = useGameApp();
 
 const showInGameMenu = ref(false);
-const uiSettings = ref({
-  theme: "default" as "default" | "fantasy" | "terminal" | "archive",
-  messageSpeed: "normal",
-});
-
-const THEME_KEY = "roleclaw:theme";
 
 function handleMenuSelect(action: "start" | "saves" | "ai" | "cards" | "settings" | "exit") {
   if (action === "exit") {
@@ -291,20 +315,18 @@ function applyTheme(theme: string) {
 }
 
 watch(
-  () => uiSettings.value.theme,
-  (next) => {
+  () => gameSettings.value.theme,
+  async (next, prev) => {
     applyTheme(next);
-    localStorage.setItem(THEME_KEY, next);
+    if (prev && prev !== next) {
+      await saveGlobalGameData();
+    }
   }
 );
 
 onMounted(async () => {
-  const stored = localStorage.getItem(THEME_KEY);
-  if (stored === "default" || stored === "fantasy" || stored === "terminal" || stored === "archive") {
-    uiSettings.value.theme = stored;
-  }
-  applyTheme(uiSettings.value.theme);
   await refreshHome();
+  applyTheme(gameSettings.value.theme);
   window.addEventListener("keydown", onKeydown);
 });
 
@@ -483,5 +505,27 @@ onBeforeUnmount(() => {
   border: 1px solid var(--game-error-border);
   background: var(--game-error-bg);
   color: var(--game-error-text);
+}
+
+.ai-grid {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.ai-block {
+  border: 1px solid var(--game-panel-border);
+  border-radius: var(--radius-lg);
+  padding: 0.9rem;
+  background: color-mix(in oklab, var(--game-panel-bg) 92%, white 8%);
+}
+
+.ai-block-title {
+  margin-bottom: 0.7rem;
+  font-weight: 600;
+}
+
+.model-check-msg {
+  border-color: var(--game-panel-border);
+  background: color-mix(in oklab, var(--game-btn-primary-bg) 8%, transparent);
 }
 </style>
